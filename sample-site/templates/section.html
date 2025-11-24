@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section>
+  <h2>{{ section.title }}</h2>
+
+  <div class="content-list">
+    {% for page in section.pages %}
+    <article class="card">
+      {% if page.extra.thumbnail %}
+      <img src="{{ page.extra.thumbnail }}" alt="{{ page.title }}">
+      {% endif %}
+      <h2><a href="{{ page.permalink }}">{{ page.title }}</a></h2>
+      <time>{{ page.date }}</time>
+      {% if page.extra.category %}
+      <span class="category">{{ page.extra.category }}</span>
+      {% endif %}
+      {% if page.description %}
+      <p>{{ page.description }}</p>
+      {% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endblock content %}

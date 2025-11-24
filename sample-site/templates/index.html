@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+{% if section.extra.hero_image %}
+<div class="hero">
+    <img src="{{ section.extra.hero_image }}" alt="{{ section.title }}" class="hero-image">
+    <div class="hero-content">
+        <h1>{{ section.title }}</h1>
+        {% if section.description %}
+        <p>{{ section.description }}</p>
+        {% endif %}
+    </div>
+</div>
+{% else %}
+<div class="hero">
+    <div class="hero-content">
+        <h1>{{ section.title }}</h1>
+        {% if section.description %}
+        <p>{{ section.description }}</p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+{{ section.content | safe }}
+{% endblock content %}

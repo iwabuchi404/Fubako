@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="{{ lang }}">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}{{ config.title }}{% endblock title %}</title>
+  {% if page.description %}
+  <meta name="description" content="{{ page.description }}">
+  {% elif section.description %}
+  <meta name="description" content="{{ section.description }}">
+  {% else %}
+  <meta name="description" content="{{ config.description }}">
+  {% endif %}
+  <link rel="stylesheet" href="{{ get_url(path='main.css') }}">
+</head>
+
+<body>
+  <header>
+    <div class="header-container">
+      <div>
+        <h1><a href="{{ get_url(path='/') }}">{{ config.extra.company_name }}</a></h1>
+        <div class="tagline">{{ config.extra.tagline }}</div>
+      </div>
+      <nav>
+        <a href="{{ get_url(path='/') }}">ホーム</a>
+        <a href="{{ get_url(path='/pages/about') }}">会社概要</a>
+        <a href="{{ get_url(path='/services') }}">サービス</a>
+        <a href="{{ get_url(path='/cases') }}">導入事例</a>
+        <a href="{{ get_url(path='/news') }}">ニュース</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    {% block content %}{% endblock content %}
+  </main>
+
+  <footer>
+    <div class="footer-container">
+      <div class="footer-section">
+        <h3>会社情報</h3>
+        <ul>
+          <li>社名: {{ config.extra.company_name }}</li>
+          <li>設立: {{ config.extra.founded }}</li>
+          <li>従業員数: {{ config.extra.employees }}</li>
+          <li>資本金: {{ config.extra.capital }}</li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h3>お問い合わせ</h3>
+        <ul>
+          <li>TEL: {{ config.extra.phone }}</li>
+          <li>Email: {{ config.extra.email }}</li>
+          <li>{{ config.extra.address }}</li>
+        </ul>
+      </div>
+
+      <div class="footer-section">
+        <h3>リンク</h3>
+        <ul>
+          <li><a href="{{ get_url(path='/services') }}">サービス</a></li>
+          <li><a href="{{ get_url(path='/cases') }}">導入事例</a></li>
+          <li><a href="{{ get_url(path='/news') }}">ニュース</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>{{ config.extra.footer_text }}</p>
+    </div>
+  </footer>
+</body>
+
+</html>

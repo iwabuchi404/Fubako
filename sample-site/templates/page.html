@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}{{ page.title }} | {{ config.title }}{% endblock title %}
+
+{% block content %}
+<article>
+  <header>
+    {% if page.extra.thumbnail %}
+    <img src="{{ page.extra.thumbnail }}" alt="{{ page.title }}"
+      style="width: 100%; max-height: 400px; object-fit: cover; border-radius: 8px; margin-bottom: 1.5rem;">
+    {% endif %}
+    <h1>{{ page.title }}</h1>
+    {% if page.date %}
+    <time>{{ page.date }}</time>
+    {% endif %}
+    {% if page.extra.category %}
+    <span
+      style="display: inline-block; padding: 0.25rem 0.75rem; margin-left: 1rem; background: #E0F7FA; color: #00838F; border-radius: 4px; font-size: 0.8125rem; font-weight: 600;">{{
+      page.extra.category }}</span>
+    {% endif %}
+  </header>
+
+  <div class="content">
+    {{ page.content | safe }}
+  </div>
+
+  {% if page.extra.testimonial %}
+  <section
+    style="background: #F5F5F5; padding: 2rem; border-radius: 8px; margin-top: 2rem; border-left: 4px solid #00BCD4;">
+    <h3 style="margin-top: 0; color: #00BCD4;">お客様の声</h3>
+    <blockquote style="border-left: none; padding-left: 0;">
+      {{ page.extra.testimonial }}
+    </blockquote>
+    {% if page.extra.testimonial_author %}
+    <p style="text-align: right; font-weight: 600; margin-bottom: 0;">— {{ page.extra.testimonial_author }}</p>
+    {% endif %}
+  </section>
+  {% endif %}
+</article>
+{% endblock content %}
