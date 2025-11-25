@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -189,6 +189,32 @@ ipcMain.handle('start-preview', async (event) => {
     return { success: false, error: error.message };
   }
 });
+
+ipcMain.handle('stop-preview', async () => {
+  try {
+    if (zolaProcess) {
+      zolaProcess.kill()
+      zolaProcess = null
+      return { success: true }
+    }
+    return { success: false, error: 'プレビューサーバーは起動していません' }
+  } catch (error) {
+    console.error('Failed to stop preview:', error)
+    return { success: false, error: error.message }
+  }
+});
+
+ipcMain.handle('open-in-browser', async (event, url) => {
+  try {
+    await shell.openExternal(url)
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to open in browser:', error)
+    return { success: false, error: error.message }
+  }
+});
+
+
 
 
 function createWindow() {

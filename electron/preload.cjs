@@ -9,5 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     uploadImage: (filePath) => ipcRenderer.invoke('upload-image', { filePath }),
     listImages: () => ipcRenderer.invoke('list-images'),
     startPreview: () => ipcRenderer.invoke('start-preview'),
+    stopPreview: () => ipcRenderer.invoke('stop-preview'),
+    openInBrowser: (url) => ipcRenderer.invoke('open-in-browser', url),
     onZolaError: (callback) => ipcRenderer.on('zola-error', (_event, value) => callback(value)),
 });

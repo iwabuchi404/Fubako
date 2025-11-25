@@ -14,10 +14,20 @@
         <p><strong>プロジェクト:</strong> {{ projectStore.projectPath }}</p>
         <p><strong>サイト名:</strong> {{ projectStore.config?.site?.name }}</p>
         <div class="preview-controls">
-          <button @click="handleStartPreview" class="btn-primary" :disabled="previewStarting">
+          <button 
+            v-if="!projectStore.previewRunning"
+            @click="handleStartPreview" 
+            class="btn-primary" 
+            :disabled="previewStarting"
+          >
             {{ previewStarting ? 'プレビュー起動中...' : 'プレビューを開始' }}
           </button>
-          <a v-if="previewUrl" :href="previewUrl" target="_blank" class="btn-secondary">
+          <a 
+            v-if="projectStore.previewUrl" 
+            :href="projectStore.previewUrl" 
+            target="_blank" 
+            class="btn-secondary"
+          >
             プレビューを開く
           </a>
         </div>
@@ -60,7 +70,6 @@ const projectStore = useProjectStore()
 const router = useRouter()
 
 const previewStarting = ref(false)
-const previewUrl = ref(null)
 
 async function handleOpenProject() {
   const success = await projectStore.openProject()
@@ -72,9 +81,8 @@ async function handleOpenProject() {
 async function handleStartPreview() {
   previewStarting.value = true
   try {
-    const result = await window.electronAPI.startPreview()
+    const result = await projectStore.startPreview()
     if (result.success) {
-      previewUrl.value = result.url
       alert('プレビューサーバーを起動しました')
     } else {
       alert('プレビューの起動に失敗しました: ' + result.error)

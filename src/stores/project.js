@@ -5,6 +5,8 @@ export const useProjectStore = defineStore('project', () => {
     const projectPath = ref(null)
     const config = ref(null)
     const isLoaded = ref(false)
+    const previewUrl = ref(null)
+    const previewRunning = ref(false)
 
     const contentTypes = computed(() => {
         if (!config.value?.content_types) return []
@@ -35,6 +37,33 @@ export const useProjectStore = defineStore('project', () => {
         projectPath.value = null
         config.value = null
         isLoaded.value = false
+        previewUrl.value = null
+        previewRunning.value = false
+    }
+
+    async function startPreview() {
+        try {
+            const result = await window.electronAPI.startPreview()
+            if (result.success) {
+                previewUrl.value = result.url
+                previewRunning.value = true
+                return result
+            }
+            return result
+        } catch (error) {
+            console.error('Failed to start preview:', error)
+            return { success: false, error: error.message }
+        }
+    }
+
+    async function stopPreview() {
+        try {
+            await window.electronAPI.stopPreview()
+            previewUrl.value = null
+            previewRunning.value = false
+        } catch (error) {
+            console.error('Failed to stop preview:', error)
+        }
     }
 
     return {
@@ -42,7 +71,11 @@ export const useProjectStore = defineStore('project', () => {
         config,
         isLoaded,
         contentTypes,
+        previewUrl,
+        previewRunning,
         openProject,
-        reset
+        reset,
+        startPreview,
+        stopPreview
     }
 })

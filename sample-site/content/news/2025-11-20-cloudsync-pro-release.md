@@ -1,13 +1,12 @@
 ---
-title: "新製品「CloudSync Pro」をリリースしました"
-date: 2025-11-20
+title: 新製品「CloudSync Pro」をリリースしました
 draft: false
-description: "企業向けクラウドストレージサービスの最新版をリリース。AI搭載で業務効率が大幅に向上します。"
-
+description: 企業向けクラウドストレージサービスの最新版をリリース。AI搭載で業務効率が大幅に向上します。
 extra:
-  category: "プレスリリース"
-  author: "広報部"
-  thumbnail: "/images/news-cloudsync-pro.jpg"
+  category: プレスリリース
+  author: 広報部
+  thumbnail: /images/news-cloudsync-pro.jpg
+date: '2025-11-26'
 ---
 
 <img src="/images/news-cloudsync-pro.jpg" alt="CloudSync Pro" style="width: 100%; border-radius: 8px; margin-bottom: 2rem;">

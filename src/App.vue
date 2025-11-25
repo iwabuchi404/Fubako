@@ -74,13 +74,13 @@ const projectStore = useProjectStore()
   background: rgba(255, 255, 255, 0.15);
 }
 
-.main-nav a.router-link-active {
+.main-nav a.router-link-exact-active {
   background: rgba(255, 255, 255, 0.25);
 }
 
 .app-main {
   padding: 2rem;
-  max-width: 1400px;
+  max-width: 1800px;
   margin: 0 auto;
   animation: fadeIn 0.3s ease-out;
 }
