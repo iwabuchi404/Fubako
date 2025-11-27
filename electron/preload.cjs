@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
     stopPreview: () => ipcRenderer.invoke('stop-preview'),
     openInBrowser: (url) => ipcRenderer.invoke('open-in-browser', url),
     onZolaError: (callback) => ipcRenderer.on('zola-error', (_event, value) => callback(value)),
+    loadSiteSettings: () => ipcRenderer.invoke('load-site-settings'),
+    saveSiteSettings: (settings) => ipcRenderer.invoke('save-site-settings', settings),
 });

@@ -3,6 +3,15 @@
     <div class="header">
       <h2>{{ isNew ? '新規作成' : '編集' }}: {{ contentTypeConfig?.label }}</h2>
       <div class="header-actions">
+        <!-- 現在の状態を表示 -->
+        <span 
+          v-if="!isNew"
+          class="current-status"
+          :class="currentStatus.class"
+        >
+          {{ currentStatus.label }}
+        </span>
+
         <button @click="handleSave" class="btn-primary" :disabled="saving">
           {{ saving ? '保存中...' : '保存' }}
         </button>
@@ -20,6 +29,26 @@
 
     <div v-else class="editor-layout">
       <div class="form-panel">
+        <!-- 公開設定セクション -->
+        <div class="publish-settings-card">
+          <h3>📤 公開設定</h3>
+          
+          <div class="publish-info">
+            <div v-if="!isNew" class="status-display">
+              <strong>現在の状態:</strong>
+              <span 
+                class="status-badge"
+                :class="currentStatus.class"
+              >
+                {{ currentStatus.label }}
+              </span>
+            </div>
+            
+            <p class="help-text">
+              ※ プレビューでは全ての記事が表示されます。本番サイトでは公開済みの記事のみ表示されます。
+            </p>
+          </div>
+        </div>
         <div v-for="field in fields" :key="field.key" class="form-group">
           <label :for="field.key">
             {{ field.label }}
@@ -197,6 +226,34 @@ const contentTypeConfig = computed(() => {
 
 const fields = computed(() => {
   return contentTypeConfig.value?.fields || []
+})
+
+const currentStatus = computed(() => {
+  if (isNew.value) {
+    return { label: '新規', class: '' }
+  }
+  
+  if (formData.draft) {
+    return {
+      label: '📝 下書き',
+      class: 'status-draft'
+    }
+  }
+  
+  const publishDate = new Date(formData.date)
+  const now = new Date()
+  
+  if (publishDate > now) {
+    return {
+      label: '🕐 予約投稿',
+      class: 'status-scheduled'
+    }
+  }
+  
+  return {
+    label: '✅ 公開中',
+    class: 'status-published'
+  }
 })
 
 async function loadContent() {
@@ -390,6 +447,71 @@ function updatePreviewUrl() {
 .header-actions {
   display: flex;
   gap: 0.5rem;
+  align-items: center;
+}
+
+.current-status {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-right: 0.5rem;
+}
+
+.publish-settings-card {
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.publish-settings-card h3 {
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
+  color: #2c3e50;
+}
+
+.publish-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.status-display {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.help-text {
+  font-size: 0.875rem;
+  color: #6c757d;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-published {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-scheduled {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-draft {
+  background: #e2e3e5;
+  color: #383d41;
 }
 
 .loading {

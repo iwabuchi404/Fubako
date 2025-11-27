@@ -22,6 +22,11 @@ const router = createRouter({
             path: '/edit/:type/:slug?',
             name: 'edit',
             component: () => import('../views/EditView.vue')
+        },
+        {
+            path: '/settings',
+            name: 'settings',
+            component: () => import('../views/SettingsView.vue')
         }
     ]
 })

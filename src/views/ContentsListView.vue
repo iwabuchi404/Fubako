@@ -19,6 +19,7 @@
     <table v-else class="contents-table">
       <thead>
         <tr>
+          <th>状態</th>
           <th v-for="col in displayColumns" :key="col.key">
             {{ col.label }}
           </th>
@@ -27,6 +28,14 @@
       </thead>
       <tbody>
         <tr v-for="item in contents" :key="item.slug">
+          <td>
+            <span 
+              class="status-badge" 
+              :class="getPublishStatus(item).class"
+            >
+              {{ getPublishStatus(item).label }}
+            </span>
+          </td>
           <td v-for="col in displayColumns" :key="col.key">
             {{ item[col.key] || '-' }}
           </td>
@@ -71,6 +80,30 @@ const displayColumns = computed(() => {
     { key: 'title', label: 'タイトル' }
   ]
 })
+
+function getPublishStatus(item) {
+  if (item.draft) {
+    return {
+      label: '📝 下書き',
+      class: 'status-draft'
+    }
+  }
+  
+  const publishDate = new Date(item.date)
+  const now = new Date()
+  
+  if (publishDate > now) {
+    return {
+      label: '🕐 予約投稿',
+      class: 'status-scheduled'
+    }
+  }
+  
+  return {
+    label: '✅ 公開中',
+    class: 'status-published'
+  }
+}
 
 async function loadContents() {
   loading.value = true
@@ -171,5 +204,28 @@ onMounted(() => {
 
 .btn-edit:hover {
   background: #d5dbdb;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-published {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-scheduled {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-draft {
+  background: #e2e3e5;
+  color: #383d41;
 }
 </style>

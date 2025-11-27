@@ -4,6 +4,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const contentManager = require('./contentManager.cjs');
 const imageManager = require('./imageManager.cjs');
+const configManager = require('./configManager.cjs');
 
 let currentProjectPath = null;
 let currentConfig = null;
@@ -211,6 +212,32 @@ ipcMain.handle('open-in-browser', async (event, url) => {
   } catch (error) {
     console.error('Failed to open in browser:', error)
     return { success: false, error: error.message }
+  }
+});
+
+ipcMain.handle('load-site-settings', async () => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const settings = await configManager.loadSiteSettings(currentProjectPath, currentConfig);
+    return { success: true, settings };
+  } catch (error) {
+    console.error('Failed to load site settings:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('save-site-settings', async (event, newSettings) => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await configManager.saveSiteSettings(currentProjectPath, currentConfig, newSettings);
+    return result;
+  } catch (error) {
+    console.error('Failed to save site settings:', error);
+    return { success: false, error: error.message };
   }
 });
 

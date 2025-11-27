@@ -11,6 +11,7 @@
         >
           {{ contentType.label }}
         </router-link>
+        <router-link to="/settings">設定</router-link>
       </nav>
     </header>
     

@@ -56,6 +56,20 @@
             </router-link>
           </div>
         </div>
+
+        <!-- 設定カード -->
+        <div class="content-type-card settings-card">
+          <h3>⚙️ サイト設定</h3>
+          <p>サイトの基本情報や会社情報を編集</p>
+          <div class="card-actions">
+            <router-link 
+              to="/settings"
+              class="btn-primary btn-full"
+            >
+              設定を開く
+            </router-link>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -244,6 +258,24 @@ async function handleStartPreview() {
 .btn-secondary:hover {
   background: var(--color-gray-50);
   border-color: var(--color-gray-400);
+}
+
+.btn-full {
+  width: 100%;
+}
+
+.settings-card {
+  border: 2px solid var(--color-primary);
+  background: white;
+}
+
+.settings-card::before {
+  background: var(--color-primary);
+}
+
+.settings-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: var(--color-primary-dark);
 }
 
 @keyframes fadeIn {

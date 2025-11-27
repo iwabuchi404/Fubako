@@ -1,6 +1,6 @@
 ---
 title: 新製品「CloudSync Pro」をリリースしました
-draft: false
+draft: true
 description: 企業向けクラウドストレージサービスの最新版をリリース。AI搭載で業務効率が大幅に向上します。
 extra:
   category: プレスリリース
