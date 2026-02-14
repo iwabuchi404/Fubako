@@ -1,61 +1,71 @@
 <template>
-  <div class="contents-list">
+  <div class="contents-list fade-in-up">
     <div class="header">
-      <h2>{{ contentTypeConfig?.label || type }}</h2>
+      <div class="title-area">
+        <span class="type-tag">{{ type }}</span>
+        <h2 class="text-glow">{{ contentTypeConfig?.label || type }}</h2>
+      </div>
       <router-link :to="`/edit/${type}`" class="btn-primary">
-        新規作成
+        <span>新規エントリ作成</span>
+        <i class="icon-plus"></i>
       </router-link>
     </div>
 
-    <div v-if="loading" class="loading">読み込み中...</div>
+    <div v-if="loading" class="loading">
+      <span>データの整合性を確認中...</span>
+    </div>
     
-    <div v-else-if="contents.length === 0" class="empty-state">
-      <p>まだコンテンツがありません</p>
+    <div v-else-if="contents.length === 0" class="empty-state glass">
+      <p>このディレクトリにはまだコンテンツが存在しません。</p>
       <router-link :to="`/edit/${type}`" class="btn-primary">
-        最初のコンテンツを作成
+        最初のエントリを作成
       </router-link>
     </div>
 
-    <table v-else class="contents-table">
-      <thead>
-        <tr>
-          <th>状態</th>
-          <th v-for="col in displayColumns" :key="col.key">
-            {{ col.label }}
-          </th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr v-for="item in contents" :key="item.slug">
-          <td>
-            <span 
-              class="status-badge" 
-              :class="getPublishStatus(item).class"
-            >
-              {{ getPublishStatus(item).label }}
-            </span>
-          </td>
-          <td v-for="col in displayColumns" :key="col.key">
-            {{ item[col.key] || '-' }}
-          </td>
-          <td class="actions-cell">
-            <router-link
-              :to="`/edit/${type}/${item.slug}`"
-              class="btn-edit"
-            >
-              編集
-            </router-link>
-            <button
-              @click="handleDelete(item.slug, item.title)"
-              class="btn-delete"
-            >
-              削除
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+    <div v-else class="table-container glass">
+      <table class="contents-table">
+        <thead>
+          <tr>
+            <th class="col-status">STATUS</th>
+            <th v-for="col in displayColumns" :key="col.key">
+              {{ col.label.toUpperCase() }}
+            </th>
+            <th class="col-actions">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in contents" :key="item.slug">
+            <td>
+              <span 
+                class="status-badge" 
+                :class="getPublishStatus(item).class"
+              >
+                {{ getPublishStatus(item).label }}
+              </span>
+            </td>
+            <td v-for="col in displayColumns" :key="col.key" class="data-cell">
+              {{ item[col.key] || '-' }}
+            </td>
+            <td class="actions-cell">
+              <router-link
+                :to="`/edit/${type}/${item.slug}`"
+                class="btn-edit"
+                title="編集"
+              >
+                編集
+              </router-link>
+              <button
+                @click="handleDelete(item.slug, item.title)"
+                class="btn-remove"
+                title="削除"
+              >
+                削除
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
@@ -80,7 +90,6 @@ const displayColumns = computed(() => {
   if (cols && cols.length > 0) {
     return cols
   }
-  // デフォルトカラム
   return [
     { key: 'date', label: '日付' },
     { key: 'title', label: 'タイトル' }
@@ -90,7 +99,7 @@ const displayColumns = computed(() => {
 function getPublishStatus(item) {
   if (item.draft) {
     return {
-      label: '📝 下書き',
+      label: 'DRAFT',
       class: 'status-draft'
     }
   }
@@ -100,13 +109,13 @@ function getPublishStatus(item) {
   
   if (publishDate > now) {
     return {
-      label: '🕐 予約投稿',
+      label: 'SCHEDULED',
       class: 'status-scheduled'
     }
   }
   
   return {
-    label: '✅ 公開中',
+    label: 'PUBLISHED',
     class: 'status-published'
   }
 }
@@ -148,131 +157,94 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.contents-list {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 1.5rem 2.5rem;
+}
+
 .header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
-  margin-bottom: 2rem;
+  align-items: flex-end;
+  margin-bottom: 3rem;
+}
+
+.type-tag {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--color-text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  display: block;
 }
 
 .header h2 {
+  font-size: 2.5rem;
   margin: 0;
+  line-height: 1;
 }
 
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: #7f8c8d;
-}
-
-.empty-state {
-  text-align: center;
-  padding: 3rem;
-}
-
-.empty-state p {
-  color: #7f8c8d;
-  margin-bottom: 1rem;
+.table-container {
+  overflow: hidden;
+  border-radius: var(--radius-lg);
 }
 
 .contents-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.contents-table th,
-.contents-table td {
-  padding: 1rem;
-  text-align: left;
-  border-bottom: 1px solid #e1e4e8;
-}
-
-.contents-table th {
-  background: #f8f9fa;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.contents-table tbody tr:hover {
-  background: #f8f9fa;
-}
-
-.btn-primary {
-  padding: 0.5rem 1rem;
-  background: #3498db;
-  color: white;
   border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  transition: background 0.2s;
 }
 
-.btn-primary:hover {
-  background: #2980b9;
-}
+.col-status { width: 150px; }
+.col-actions { width: 200px; text-align: right !important; }
 
-.btn-edit {
-  padding: 0.25rem 0.75rem;
-  background: #ecf0f1;
-  color: #2c3e50;
-  border-radius: 4px;
-  text-decoration: none;
-  font-size: 0.9rem;
-  transition: background 0.2s;
-}
-
-.btn-edit:hover {
-  background: #d5dbdb;
+.data-cell {
+  font-weight: 500;
+  color: var(--color-text-main);
 }
 
 .actions-cell {
   display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.btn-delete {
-  padding: 0.25rem 0.75rem;
-  background: #fee;
-  color: #e74c3c;
-  border: 1px solid #e74c3c;
-  border-radius: 4px;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-delete:hover {
-  background: #e74c3c;
-  color: white;
+  gap: 0.75rem;
+  justify-content: flex-end;
 }
 
 .status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  font-size: 0.65rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
   display: inline-block;
+  letter-spacing: 0.05em;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
 }
 
 .status-published {
-  background: #d4edda;
-  color: #155724;
+  color: var(--color-success);
+  border-color: rgba(16, 185, 129, 0.2);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
 }
 
 .status-scheduled {
-  background: #fff3cd;
-  color: #856404;
+  color: var(--color-warning);
+  border-color: rgba(245, 158, 11, 0.2);
 }
 
 .status-draft {
-  background: #e2e3e5;
-  color: #383d41;
+  color: var(--color-text-dim);
+  border-color: rgba(148, 163, 184, 0.2);
+}
+
+.loading {
+  padding: 10vh 0;
+  font-family: var(--font-mono);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-size: 0.9rem;
+}
+
+.empty-state {
+  border: 1px dashed var(--glass-border);
 }
 </style>

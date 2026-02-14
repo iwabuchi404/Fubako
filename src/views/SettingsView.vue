@@ -1,73 +1,84 @@
 <template>
-  <div class="settings-view">
-    <div class="header">
-      <h2>⚙️ サイト設定</h2>
+  <div class="settings-view fade-in-up">
+    <header class="settings-header glass">
+      <div class="title-area">
+        <span class="type-tag">SYSTEM</span>
+        <h2 class="text-glow">GLOBAL SETTINGS</h2>
+      </div>
       <div class="header-actions">
         <button @click="handleSave" class="btn-primary" :disabled="saving">
-          {{ saving ? '保存中...' : '保存' }}
+          {{ saving ? 'UPDATING...' : 'SAVE CHANGES' }}
         </button>
       </div>
-    </div>
+    </header>
 
-    <div v-if="loading" class="loading">読み込み中...</div>
+    <div v-if="loading" class="loading-full">
+      <div class="loader-neon"></div>
+      <p>LOADING SYSTEM CONFIG...</p>
+    </div>
 
     <div v-if="errorMessage" class="error-banner">
-      {{ errorMessage }}
+      <i class="icon-warning">!</i> {{ errorMessage }}
     </div>
 
-    <div v-else-if="!loading" class="settings-layout">
-      <!-- タブナビゲーション -->
-      <div class="tabs">
+    <div v-else-if="!loading" class="settings-main-layout">
+      <!-- Vertical Tabs Navigation -->
+      <aside class="settings-nav glass">
+        <div class="nav-label">CONFIGURATION</div>
         <button
           v-for="group in groups"
           :key="group.id"
           @click="activeTab = group.id"
-          :class="['tab-button', { active: activeTab === group.id }]"
+          :class="['nav-button', { active: activeTab === group.id }]"
         >
-          {{ group.label }}
+          {{ group.label.toUpperCase() }}
         </button>
-      </div>
+      </aside>
 
-      <!-- フォームエリア -->
-      <div class="form-container">
-        <div v-for="group in groups" :key="group.id" v-show="activeTab === group.id" class="form-group-section">
-          <h3>{{ group.label }}</h3>
+      <!-- Main Form Area -->
+      <main class="settings-content glass">
+        <div v-for="group in groups" :key="group.id" v-show="activeTab === group.id" class="form-section fade-in">
+          <div class="section-header">
+            <h3>{{ group.label }}</h3>
+            <p class="section-desc">Manage your {{ group.label.toLowerCase() }} and global configurations.</p>
+          </div>
           
-          <div v-for="field in group.fields" :key="field.key" class="form-group">
-            <label :for="field.key">
-              {{ field.label }}
-              <span v-if="field.required" class="required">*</span>
-            </label>
+          <div class="form-grid">
+            <div v-for="field in group.fields" :key="field.key" class="form-item">
+              <label :for="field.key">
+                {{ field.label }}
+                <span v-if="field.required" class="required">*</span>
+              </label>
 
-            <!-- Text -->
-            <input 
-              v-if="field.type === 'text'"
-              :id="field.key"
-              v-model="formData[field.key]"
-              type="text"
-              :placeholder="field.placeholder"
-              :required="field.required"
-              :readonly="field.readonly"
-              :class="{ readonly: field.readonly }"
-            />
+              <!-- Inputs styled globally in components.css -->
+              <input 
+                v-if="field.type === 'text'"
+                :id="field.key"
+                v-model="formData[field.key]"
+                type="text"
+                :placeholder="field.placeholder"
+                :required="field.required"
+                :readonly="field.readonly"
+                :class="{ readonly: field.readonly }"
+              />
 
-            <!-- Textarea -->
-            <textarea 
-              v-else-if="field.type === 'textarea'"
-              :id="field.key"
-              v-model="formData[field.key]"
-              :rows="field.rows || 3"
-              :placeholder="field.placeholder"
-              :required="field.required"
-              :readonly="field.readonly"
-              :class="{ readonly: field.readonly }"
-            />
+              <textarea 
+                v-else-if="field.type === 'textarea'"
+                :id="field.key"
+                v-model="formData[field.key]"
+                :rows="field.rows || 3"
+                :placeholder="field.placeholder"
+                :required="field.required"
+                :readonly="field.readonly"
+                :class="{ readonly: field.readonly }"
+              />
 
-            <p v-if="field.help" class="field-help">{{ field.help }}</p>
-            <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
+              <p v-if="field.help" class="field-help">{{ field.help }}</p>
+              <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
+            </div>
           </div>
         </div>
-      </div>
+      </main>
     </div>
   </div>
 </template>
@@ -97,11 +108,9 @@ async function loadSettings() {
     const result = await window.electronAPI.loadSiteSettings()
     
     if (result.success) {
-      // reactiveオブジェクトに設定値を代入
       Object.keys(formData).forEach(key => delete formData[key])
       Object.assign(formData, result.settings)
       
-      // 最初のグループをアクティブに
       if (groups.value.length > 0) {
         activeTab.value = groups.value[0].id
       }
@@ -168,173 +177,159 @@ onMounted(async () => {
 
 <style scoped>
 .settings-view {
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
+  padding: 1.5rem 2.5rem;
+  height: calc(100vh - 60px); /* Adjust for header height */
+  display: flex;
+  flex-direction: column;
 }
 
-.header {
+.settings-header {
+  padding: 1rem 2.5rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  border-radius: var(--radius-lg);
 }
 
-.header h2 {
+.type-tag {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  display: block;
+}
+
+.settings-header h2 {
+  font-size: 1.5rem;
   margin: 0;
-  font-size: 1.75rem;
-  color: #2c3e50;
+  letter-spacing: -0.02em;
 }
 
-.header-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: #7f8c8d;
-}
-
-.error-banner {
-  background: #fee;
-  border: 2px solid #e74c3c;
-  color: #c0392b;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
-.settings-layout {
-  background: white;
-  border-radius: 8px;
-  box-shadow: var(--shadow-md);
+.settings-main-layout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 2rem;
   overflow: hidden;
 }
 
-.tabs {
+.settings-nav {
+  padding: 1.5rem;
   display: flex;
-  border-bottom: 2px solid #e9ecef;
-  background: #f8f9fa;
-  overflow-x: auto;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.tab-button {
-  padding: 1rem 1.5rem;
-  border: none;
+.nav-label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  color: var(--color-text-dark);
+  letter-spacing: 0.15em;
+  margin-bottom: 1rem;
+  padding-left: 0.75rem;
+}
+
+.nav-button {
   background: transparent;
-  cursor: pointer;
-  font-size: 0.9375rem;
-  font-weight: 500;
-  color: #6c757d;
-  transition: all 0.2s;
-  border-bottom: 3px solid transparent;
-  white-space: nowrap;
-}
-
-.tab-button:hover {
-  background: rgba(0, 0, 0, 0.05);
-  color: #2c3e50;
-}
-
-.tab-button.active {
-  color: #3498db;
-  border-bottom-color: #3498db;
-  background: white;
-}
-
-.form-container {
-  padding: 2rem;
-}
-
-.form-group-section h3 {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.25rem;
-  color: #2c3e50;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #e9ecef;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #2c3e50;
-  font-size: 0.9375rem;
-}
-
-.required {
-  color: #e74c3c;
-}
-
-.form-group input[type="text"],
-.form-group textarea {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #d5dbdb;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-family: inherit;
-  transition: border-color 0.2s;
-}
-
-.form-group input[type="text"]:focus,
-.form-group textarea:focus {
-  outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
-}
-
-.form-group input.readonly,
-.form-group textarea.readonly {
-  background: #f8f9fa;
-  cursor: not-allowed;
-  color: #6c757d;
-}
-
-.form-group textarea {
-  resize: vertical;
-  min-height: 100px;
-}
-
-.field-help {
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #7f8c8d;
-}
-
-.field-error {
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #e74c3c;
-  font-weight: 600;
-}
-
-.btn-primary {
-  padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 4px;
+  color: var(--color-text-dim);
+  text-align: left;
+  padding: 0.8rem 1.2rem;
+  border-radius: var(--radius-md);
   cursor: pointer;
-  background: #3498db;
-  color: white;
-  font-size: 1rem;
-  font-weight: 500;
-  transition: all 0.2s;
+  font-size: 0.8rem;
+  font-weight: 700;
+  transition: all 0.3s ease;
+  letter-spacing: 0.05em;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #2980b9;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(52, 152, 219, 0.3);
+.nav-button:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--color-text-main);
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
+.nav-button.active {
+  background: rgba(0, 242, 255, 0.08);
+  color: var(--color-primary);
+  box-shadow: inset 2px 0 0 var(--color-primary);
+}
+
+.settings-content {
+  padding: 3rem;
+  overflow-y: auto;
+}
+
+.section-header {
+  margin-bottom: 3rem;
+}
+
+.section-header h3 {
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.section-desc {
+  color: var(--color-text-dark);
+  font-size: 0.9rem;
+}
+
+.form-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  max-width: 800px;
+}
+
+.form-item label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  margin-bottom: 0.6rem;
+}
+
+.readonly {
+  background: rgba(255, 255, 255, 0.02) !important;
+  color: var(--color-text-dark) !important;
   cursor: not-allowed;
+}
+
+.loading-full {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2rem;
+  opacity: 0.6;
+}
+
+.loader-neon {
+  width: 40px;
+  height: 40px;
+  border: 3px solid rgba(0, 242, 255, 0.1);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  box-shadow: 0 0 15px var(--color-primary-glow);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-banner {
+  padding: 1.5rem 2rem;
+  background: rgba(255, 68, 102, 0.1);
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  border-radius: var(--radius-md);
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-weight: 600;
 }
 </style>

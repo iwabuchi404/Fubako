@@ -1,216 +1,210 @@
 <template>
-  <div class="edit-view">
-    <div class="header">
-      <h2>{{ isNew ? '新規作成' : '編集' }}: {{ contentTypeConfig?.label }}</h2>
-      <div class="header-actions">
-        <!-- 現在の状態を表示 -->
-        <span 
-          v-if="!isNew"
-          class="current-status"
-          :class="currentStatus.class"
-        >
-          {{ currentStatus.label }}
-        </span>
-
-        <button @click="handleSave" class="btn-primary" :disabled="saving">
-          {{ saving ? '保存中...' : '保存' }}
-        </button>
-        <button
-          v-if="!isNew"
-          @click="handleDelete"
-          class="btn-danger"
-          :disabled="saving"
-        >
-          削除
-        </button>
-        <router-link :to="`/contents/${type}`" class="btn-secondary">
-          キャンセル
+  <div class="edit-view fade-in-up">
+    <!-- Floating Header -->
+    <header class="edit-header glass">
+      <div class="header-left">
+        <router-link :to="`/contents/${type}`" class="btn-back" title="戻る">
+          ←
         </router-link>
-      </div>
-    </div>
-
-    <div v-if="loading" class="loading">読み込み中...</div>
-
-    <div v-if="errorMessage" class="error-banner">
-      {{ errorMessage }}
-    </div>
-
-    <div v-else class="editor-layout">
-      <div class="form-panel">
-        <!-- 公開設定セクション -->
-        <div class="publish-settings-card">
-          <h3>📤 公開設定</h3>
-          
-          <div class="publish-info">
-            <div v-if="!isNew" class="status-display">
-              <strong>現在の状態:</strong>
-              <span 
-                class="status-badge"
-                :class="currentStatus.class"
-              >
-                {{ currentStatus.label }}
-              </span>
-            </div>
-            
-            <p class="help-text">
-              ※ プレビューでは全ての記事が表示されます。本番サイトでは公開済みの記事のみ表示されます。
-            </p>
-          </div>
-        </div>
-        <div v-for="field in fields" :key="field.key" class="form-group">
-          <label :for="field.key">
-            {{ field.label }}
-            <span v-if="field.required" class="required">*</span>
-          </label>
-          
-          <!-- Text -->
-          <input 
-            v-if="field.type === 'text'"
-            :id="field.key"
-            v-model="formData[field.key]"
-            type="text"
-            :placeholder="field.placeholder"
-            :required="field.required"
-          />
-
-          <!-- Textarea -->
-          <textarea 
-            v-else-if="field.type === 'textarea'"
-            :id="field.key"
-            v-model="formData[field.key]"
-            :rows="field.rows || 3"
-            :placeholder="field.placeholder"
-            :required="field.required"
-          />
-
-          <!-- Date -->
-          <input 
-            v-else-if="field.type === 'date'"
-            :id="field.key"
-            v-model="formData[field.key]"
-            type="date"
-            :required="field.required"
-          />
-
-          <!-- Toggle -->
-          <label v-else-if="field.type === 'toggle'" class="toggle-label">
-            <input 
-              :id="field.key"
-              v-model="formData[field.key]"
-              type="checkbox"
-            />
-            <span class="toggle-slider"></span>
-          </label>
-
-          <!-- Select -->
-          <select 
-            v-else-if="field.type === 'select'"
-            :id="field.key"
-            v-model="formData[field.key]"
-            :required="field.required"
-          >
-            <option value="">選択してください</option>
-            <option v-for="opt in field.options" :key="opt" :value="opt">
-              {{ opt }}
-            </option>
-          </select>
-
-          <!-- Markdown -->
-          <textarea 
-            v-else-if="field.type === 'markdown'"
-            :id="field.key"
-            v-model="formData[field.key]"
-            rows="20"
-            placeholder="Markdown形式で入力..."
-            class="markdown-editor"
-          />
-
-          <!-- Image -->
-          <div v-else-if="field.type === 'image'" class="image-field">
-            <input 
-              v-model="formData[field.key]"
-              type="text"
-              placeholder="画像パス"
-              readonly
-            />
-            <button @click="handleImageUpload(field.key)" class="btn-secondary">
-              画像を選択
-            </button>
-            <img 
-              v-if="formData[field.key]" 
-              :src="formData[field.key]" 
-              alt="Preview"
-              class="image-preview"
-            />
-          </div>
-
-          <!-- List -->
-          <div v-else-if="field.type === 'list'" class="list-field">
-            <div v-for="(item, index) in (formData[field.key] || [])" :key="index" class="list-item">
-              <input v-model="formData[field.key][index]" type="text" />
-              <button @click="removeListItem(field.key, index)" class="btn-remove">×</button>
-            </div>
-            <button @click="addListItem(field.key)" class="btn-secondary">+ 項目を追加</button>
-          </div>
-
-          <p v-if="field.help" class="field-help">{{ field.help }}</p>
-          <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
+        <div class="title-meta">
+          <span class="type-label">{{ contentTypeConfig?.label || type }}</span>
+          <h2>{{ isNew ? 'NEW ENTRY' : formData.title || 'UNTITLED' }}</h2>
         </div>
       </div>
 
-      <div class="preview-panel">
-        <!-- プレビューツールバー -->
-        <div class="preview-toolbar" v-if="projectStore.previewRunning && !isNew">
-          <div class="preview-mode-buttons">
-            <button 
-              @click="previewMode = 'mobile'"
-              :class="['btn-mode', { active: previewMode === 'mobile' }]"
-              title="モバイルビュー"
-            >
-              📱 モバイル
-            </button>
-            <button 
-              @click="previewMode = 'desktop'"
-              :class="['btn-mode', { active: previewMode === 'desktop' }]"
-              title="デスクトップビュー"
-            >
-              💻 デスクトップ
-            </button>
-          </div>
-          <button 
-            v-if="previewUrl"
-            @click="openInBrowser"
-            class="btn-external"
-            title="ブラウザで開く"
+      <div class="header-right">
+        <div class="status-indicator">
+          <span class="dot" :class="currentStatus.class"></span>
+          <span class="status-text">{{ currentStatus.label }}</span>
+        </div>
+
+        <div class="actions">
+          <button
+            v-if="!isNew"
+            @click="handleDelete"
+            class="btn-remove btn-icon"
+            :disabled="saving"
+            title="削除"
           >
-            🔗 ブラウザで開く
+            削除
+          </button>
+          <button @click="handleSave" class="btn-primary btn-save" :disabled="saving">
+            {{ saving ? 'SAVING...' : 'PUBLISH / SAVE' }}
           </button>
         </div>
-
-        <!-- プレビュー表示エリア -->
-        <div v-if="!projectStore.previewRunning" class="preview-placeholder">
-          <p>プレビューサーバーが起動していません</p>
-          <p class="preview-hint">ダッシュボードから「プレビューを開始」してください</p>
-        </div>
-        <div v-else-if="isNew" class="preview-placeholder">
-          <p>記事を保存するとプレビューが表示されます</p>
-        </div>
-        <div v-else-if="previewUrl" class="preview-container" :class="previewMode">
-          <iframe 
-            :src="previewUrl" 
-            class="preview-iframe"
-          />
-        </div>
-        <div v-else class="preview-placeholder">
-          <p>プレビューを読み込み中...</p>
-        </div>
       </div>
+    </header>
+
+    <div v-if="loading" class="loading-full">
+      <div class="loader-neon"></div>
+      <p>FETCHING DATA...</p>
+    </div>
+
+    <div v-if="errorMessage" class="error-banner">
+      <i class="icon-warning">!</i> {{ errorMessage }}
+    </div>
+
+    <div 
+      v-else 
+      class="editor-main-layout" 
+      :class="{ 
+        'sidebar-collapsed': sidebarCollapsed, 
+        'preview-collapsed': previewCollapsed,
+        'is-resizing': isResizing
+      }"
+      :style="layoutGridStyle"
+    >
+      <!-- Left Panel: Fields -->
+      <aside class="sidebar-panel glass">
+        <div class="panel-header-actions">
+          <h3>METADATA</h3>
+          <button @click="sidebarCollapsed = true" class="btn-icon-sm" title="サイドバーを隠す">◀</button>
+        </div>
+        <div class="sidebar-scroll-content">
+          <div class="panel-section">
+            <div v-for="field in fields" :key="field.key">
+              <div v-if="field.type !== 'markdown'" class="field-item">
+                <label :for="field.key">
+                  {{ field.label }}
+                  <span v-if="field.required" class="required">*</span>
+                </label>
+                
+                <!-- Input Logic -->
+                <input 
+                  v-if="field.type === 'text'"
+                  :id="field.key"
+                  v-model="formData[field.key]"
+                  type="text"
+                  :required="field.required"
+                />
+
+                <!-- 特注: スラグ（URL）フィールド -->
+                <div v-if="field.key === 'title'" class="field-item extra-field">
+                  <label for="custom-slug">
+                    カスタムURL (slug)
+                  </label>
+                  <input 
+                    id="custom-slug"
+                    v-model="formData.slug"
+                    type="text"
+                    placeholder="example-article-url"
+                  />
+                  <p class="field-help">英数字とハイフンを推奨します。空欄の場合はファイル名が使用されます。</p>
+                </div>
+                <textarea 
+                  v-else-if="field.type === 'textarea'"
+                  :id="field.key"
+                  v-model="formData[field.key]"
+                  :rows="field.rows || 3"
+                  :required="field.required"
+                />
+                <input 
+                  v-else-if="field.type === 'date'"
+                  :id="field.key"
+                  v-model="formData[field.key]"
+                  type="date"
+                  :required="field.required"
+                />
+                <select 
+                  v-else-if="field.type === 'select'"
+                  :id="field.key"
+                  v-model="formData[field.key]"
+                  :required="field.required"
+                >
+                  <option value="">Choose...</option>
+                  <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
+                </select>
+                <div v-else-if="field.type === 'image'" class="image-uploader">
+                  <div class="img-input-row">
+                    <input v-model="formData[field.key]" type="text" readonly />
+                    <button @click="handleImageUpload(field.key)" class="btn-secondary btn-sm">UPLOAD</button>
+                  </div>
+                  <img v-if="formData[field.key]" :src="formData[field.key]" class="img-thumb" />
+                </div>
+                <div v-else-if="field.type === 'toggle'" class="toggle-row">
+                  <span>{{ field.label }}</span>
+                  <label class="switch">
+                    <input v-model="formData[field.key]" type="checkbox" />
+                    <span class="slider"></span>
+                  </label>
+                </div>
+
+                <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- Sidebar Restore Trigger -->
+      <div v-if="sidebarCollapsed" class="collapsed-bar left" @click="sidebarCollapsed = false" title="サイドバーを表示">
+        <span>METADATA ▶</span>
+      </div>
+
+      <!-- Center: Editor Area -->
+      <section class="editor-area">
+        <template v-for="field in fields" :key="field.key">
+          <div v-if="field.type === 'markdown'" class="editor-wrapper">
+            <textarea 
+              :id="field.key"
+              v-model="formData[field.key]"
+              placeholder="Start writing in Markdown..."
+              class="markdown-workspace"
+            />
+          </div>
+        </template>
+      </section>
+
+      <!-- Resizer Handle -->
+      <div 
+        v-if="!previewCollapsed" 
+        class="layout-resizer" 
+        @mousedown="startResizing"
+        title="ドラッグでプレビュー幅を調整"
+      ></div>
+
+      <!-- Preview Restore Trigger -->
+      <div v-if="previewCollapsed" class="collapsed-bar right" @click="previewCollapsed = false" title="プレビューを表示">
+        <span>◀ PREVIEW</span>
+      </div>
+
+      <!-- Right Panel: Preview -->
+      <section class="preview-panel glass">
+        <div class="preview-header">
+          <div class="header-actions-left">
+            <button @click="previewCollapsed = true" class="btn-icon-sm" title="プレビューを隠す">▶</button>
+            <div class="device-selectors">
+              <button @click="previewMode = 'desktop'" :class="{active: previewMode === 'desktop'}">DESKTOP</button>
+              <button @click="previewMode = 'mobile'" :class="{active: previewMode === 'mobile'}">MOBILE</button>
+            </div>
+          </div>
+          <button @click="openInBrowser" class="btn-link">OPEN BROWSER ↗</button>
+        </div>
+
+        <div class="preview-body" :class="previewMode">
+          <div v-if="!projectStore.previewRunning" class="preview-state">
+            <p>PREVIEW SERVER INACTIVE</p>
+            <span class="hint">Start via Dashboard</span>
+          </div>
+          <div v-else-if="isNew" class="preview-state">
+            <p>SAVE TO GENERATE PREVIEW</p>
+          </div>
+          <iframe 
+            v-else-if="previewUrl"
+            :src="previewUrl" 
+            class="preview-frame"
+          />
+          <div v-else class="preview-state">
+            <p>LOADING PREVIEW...</p>
+          </div>
+        </div>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, toRaw } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '../stores/project'
 
@@ -231,8 +225,60 @@ const previewUrl = ref(null)
 const errorMessage = ref('')
 const previewMode = ref('desktop') // 'mobile' or 'desktop'
 
+const sidebarCollapsed = ref(false)
+const previewCollapsed = ref(false)
+
+// --- Resizing Logic ---
+const isResizing = ref(false)
+const previewWidth = ref(450) // Default width in pixels for preview
+
+const layoutGridStyle = computed(() => {
+  let left = sidebarCollapsed.value ? '40px' : '280px'
+  if (previewCollapsed.value) {
+    return {
+      display: 'grid',
+      gridTemplateColumns: `${left} 1fr 40px`
+    }
+  } else {
+    return {
+      display: 'grid',
+      gridTemplateColumns: `${left} 1fr 6px ${previewWidth.value}px`
+    }
+  }
+})
+
+function startResizing(e) {
+  isResizing.value = true
+  document.addEventListener('mousemove', handleMouseMove)
+  document.addEventListener('mouseup', stopResizing)
+  document.body.style.cursor = 'col-resize'
+  e.preventDefault()
+}
+
+function handleMouseMove(e) {
+  if (!isResizing.value) return
+  
+  // Calculate new width for the right panel
+  const newWidth = window.innerWidth - e.clientX
+  
+  // Constrain width
+  if (newWidth > 200 && newWidth < (window.innerWidth * 0.7)) {
+    previewWidth.value = newWidth
+  }
+}
+
+function stopResizing() {
+  isResizing.value = false
+  document.removeEventListener('mousemove', handleMouseMove)
+  document.removeEventListener('mouseup', stopResizing)
+  document.body.style.cursor = ''
+}
+
+onUnmounted(() => {
+  stopResizing()
+})
+
 // フォームの変更を監視
-import { watch } from 'vue'
 watch(formData, () => {
   isDirty.value = true
 }, { deep: true })
@@ -464,22 +510,21 @@ onMounted(async () => {
 
 // プレビューURLを更新する関数
 function updatePreviewUrl() {
-  // Zolaサーバーが起動している場合のみ
   if (projectStore.previewRunning && !isNew.value) {
     const contentType = contentTypeConfig.value
     if (contentType) {
-      // Zolaはファイル名から日付プレフィックス（YYYY-MM-DD-）を削除してslugを生成する
-      // 例: 2025-11-20-cloudsync-pro-release → cloudsync-pro-release
-      let zolaSlug = slug.value
+      // カスタムスラグが指定されている場合はそれを最優先する
+      let zolaSlug = formData.slug || slug.value
       
-      // 日付プレフィックスを削除（YYYY-MM-DD-のパターン）
-      const datePrefix = /^\d{4}-\d{2}-\d{2}-/
-      if (datePrefix.test(zolaSlug)) {
-        zolaSlug = zolaSlug.replace(datePrefix, '')
+      // カスタムスラグがない（ファイル名を使用する）場合のみ、日付プレフィックスを削除する
+      if (!formData.slug) {
+        const datePrefix = /^\d{4}-\d{2}-\d{2}-/
+        if (datePrefix.test(zolaSlug)) {
+          zolaSlug = zolaSlug.replace(datePrefix, '')
+        }
       }
       
       // Zolaのパス構造: /{folder}/{slug}/
-      // 例: /news/cloudsync-pro-release/
       const articlePath = `/${contentType.folder.replace('content/', '')}/${zolaSlug}/`
       previewUrl.value = `http://localhost:1111${articlePath}`
       console.log('[EditView] Preview URL updated:', previewUrl.value)
@@ -492,410 +537,472 @@ function updatePreviewUrl() {
 </script>
 
 <style scoped>
-.header {
+.edit-view {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Header --- */
+.edit-header {
+  height: 54px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  padding: 0 1.5rem;
+  background: var(--color-charcoal-main);
+  border-bottom: 1px solid var(--glass-border);
+  z-index: 10;
 }
 
-.header h2 {
-  margin: 0;
-}
-
-.header-actions {
+.header-left {
   display: flex;
-  gap: 0.5rem;
   align-items: center;
+  gap: 1.25rem;
 }
 
-.current-status {
-  padding: 0.5rem 1rem;
-  border-radius: 4px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  margin-right: 0.5rem;
+.btn-back {
+  font-size: 1.25rem;
+  color: var(--color-text-dim);
+  text-decoration: none;
+  line-height: 1;
 }
 
-.publish-settings-card {
-  background: #f8f9fa;
-  border: 2px solid #dee2e6;
-  border-radius: 8px;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
+.btn-back:hover {
+  color: var(--color-primary);
 }
 
-.publish-settings-card h3 {
-  margin: 0 0 1rem 0;
-  font-size: 1.125rem;
-  color: #2c3e50;
-}
-
-.publish-info {
+.title-meta {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
 
-.status-display {
+.type-label {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--color-primary);
+  text-transform: uppercase;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.title-meta h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-charcoal-muted);
+}
+
+.dot.status-published { background: var(--color-success); }
+.dot.status-scheduled { background: var(--color-warning); }
+.dot.status-draft { background: var(--color-text-dark); }
+
+.status-text {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.btn-save {
+  padding: 0.5rem 1.25rem;
+}
+
+/* --- Layout --- */
+.editor-main-layout {
+  flex: 1;
+  display: grid;
+  /* grid-template-columns is set via inline :style */
+  gap: 0; /* Gap is handled by resizer and borders */
+  background: var(--glass-border);
+  overflow: hidden;
+  width: 100%;
+}
+
+.editor-main-layout.is-resizing {
+  user-select: none;
+}
+
+.editor-main-layout.is-resizing iframe {
+  pointer-events: none;
+}
+
+.layout-resizer {
+  width: 6px;
+  background: transparent;
+  cursor: col-resize;
+  z-index: 50;
+  transition: background 0.2s;
+  position: relative;
+  margin: 0 -3px; /* Center the touch area */
+}
+
+.layout-resizer:hover,
+.is-resizing .layout-resizer {
+  background: var(--color-primary);
+  box-shadow: 0 0 8px var(--color-primary);
+}
+
+/* --- Sidebar --- */
+.sidebar-panel {
+  padding: 1.25rem;
+  overflow-y: auto;
+  background: var(--color-charcoal-main);
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sidebar-collapsed .sidebar-panel {
+  display: none;
+}
+
+.panel-header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.btn-icon-sm {
+  background: transparent;
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-dim);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.6rem;
+}
+
+.btn-icon-sm:hover {
+  background: var(--color-charcoal-muted);
+  color: var(--color-primary);
+}
+
+.sidebar-scroll-content {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.panel-section h3 {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-dark);
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  padding-bottom: 0.4rem;
+  letter-spacing: 0.05em;
+}
+
+.field-item {
+  margin-bottom: 1.25rem;
+}
+
+.field-item label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  margin-bottom: 0.4rem;
+}
+
+.required {
+  color: var(--color-error);
+  margin-left: 0.2rem;
+}
+
+.image-uploader {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.img-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: contain;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--glass-border);
+  background: var(--color-charcoal-deep);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.img-thumb:empty::after {
+  content: 'NO IMAGE';
+  font-size: 0.6rem;
+  color: var(--color-text-dark);
+  font-weight: 700;
+}
+
+.toggle-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 0.4rem 0;
+}
+
+/* --- Collapsed Bars --- */
+.collapsed-bar {
+  background: var(--color-charcoal-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  border-right: 1px solid var(--glass-border);
+  border-left: 1px solid var(--glass-border);
+}
+
+.collapsed-bar:hover {
+  background: var(--color-charcoal-muted);
+}
+
+.collapsed-bar span {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--color-text-dark);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.collapsed-bar:hover span {
+  color: var(--color-primary);
+}
+
+/* --- Editor Area --- */
+.editor-area {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-charcoal-deep);
+  height: 100%;
+}
+
+.editor-wrapper {
+  flex: 1;
+  display: flex;
+  height: 100%;
+}
+
+.markdown-workspace {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--color-text-main);
+  padding: 2rem 3rem;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  line-height: 1.8;
+  resize: none;
+  outline: none;
+  height: 100%;
+}
+
+.markdown-workspace::placeholder {
+  color: var(--color-charcoal-muted);
+}
+
+/* --- Preview Panel --- */
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--color-charcoal-main);
+}
+
+.preview-collapsed .preview-panel {
+  display: none;
+}
+
+.preview-header {
+  padding: 0.75rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-charcoal-light);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.header-actions-left {
   display: flex;
   align-items: center;
   gap: 0.75rem;
 }
 
-.help-text {
-  font-size: 0.875rem;
-  color: #6c757d;
-  margin: 0;
-  line-height: 1.5;
-}
-
-.status-badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  display: inline-block;
-}
-
-.status-published {
-  background: #d4edda;
-  color: #155724;
-}
-
-.status-scheduled {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.status-draft {
-  background: #e2e3e5;
-  color: #383d41;
-}
-
-.loading {
-  text-align: center;
-  padding: 3rem;
-  color: #7f8c8d;
-}
-
-.error-banner {
-  background: #fee;
-  border: 2px solid #e74c3c;
-  color: #c0392b;
-  padding: 1rem;
-  margin-bottom: 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-}
-
-.editor-layout {
-  display: grid;
-  grid-template-columns: 1fr 2fr;
-  gap: 2rem;
-  height: calc(100vh - 200px);
-}
-
-.form-panel {
-  overflow-y: auto;
-  padding-right: 1rem;
-}
-
-.form-group {
-  margin-bottom: 1.5rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-  color: #2c3e50;
-}
-
-.required {
-  color: #e74c3c;
-}
-
-.form-group input[type="text"],
-.form-group input[type="date"],
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 0.5rem;
-  border: 1px solid #d5dbdb;
-  border-radius: 4px;
-  font-size: 1rem;
-  font-family: inherit;
-}
-
-.form-group textarea {
-  resize: vertical;
-}
-
-.markdown-editor {
-  font-family: 'Courier New', monospace;
-  min-height: 400px;
-}
-
-.toggle-label {
-  position: relative;
-  display: inline-block;
-  width: 60px;
-  height: 34px;
-}
-
-.toggle-label input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.toggle-slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: #ccc;
-  transition: 0.4s;
-  border-radius: 34px;
-}
-
-.toggle-slider:before {
-  position: absolute;
-  content: "";
-  height: 26px;
-  width: 26px;
-  left: 4px;
-  bottom: 4px;
-  background-color: white;
-  transition: 0.4s;
-  border-radius: 50%;
-}
-
-input:checked + .toggle-slider {
-  background-color: #3498db;
-}
-
-input:checked + .toggle-slider:before {
-  transform: translateX(26px);
-}
-
-.image-field {
+.device-selectors {
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 2px;
+  border-radius: var(--radius-sm);
 }
 
-.image-preview {
-  max-width: 300px;
-  max-height: 200px;
-  object-fit: contain;
-  border: 1px solid #d5dbdb;
-  border-radius: 4px;
-}
-
-.list-field {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
-
-.list-item {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.list-item input {
-  flex: 1;
-}
-
-.btn-remove {
-  padding: 0.5rem 0.75rem;
-  background: #e74c3c;
-  color: white;
+.device-selectors button {
+  background: transparent;
   border: none;
-  border-radius: 4px;
+  color: var(--color-text-dark);
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.3rem 0.75rem;
   cursor: pointer;
+  border-radius: 2px;
 }
 
-.field-help {
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #7f8c8d;
+.device-selectors button.active {
+  background: var(--color-charcoal-muted);
+  color: var(--color-primary);
 }
 
-.field-error {
-  margin-top: 0.25rem;
-  font-size: 0.85rem;
-  color: #e74c3c;
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--color-text-dim);
+  font-size: 0.7rem;
   font-weight: 600;
-}
-
-.preview-panel {
-  border: 1px solid #d5dbdb;
-  border-radius: 8px;
-  overflow: hidden;
-  background: white;
-  display: flex;
-  flex-direction: column;
-}
-
-.preview-toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  background: #f8f9fa;
-  border-bottom: 1px solid #d5dbdb;
-  gap: 0.5rem;
-}
-
-.preview-mode-buttons {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.btn-mode {
-  padding: 0.5rem 1rem;
-  border: 1px solid #d5dbdb;
-  background: white;
-  border-radius: 4px;
   cursor: pointer;
-  font-size: 0.875rem;
-  transition: all 0.2s;
 }
 
-.btn-mode:hover {
-  background: #e9ecef;
+.btn-link:hover {
+  color: var(--color-text-main);
 }
 
-.btn-mode.active {
-  background: #3498db;
-  color: white;
-  border-color: #3498db;
-}
-
-.btn-external {
-  padding: 0.5rem 1rem;
-  border: 1px solid #d5dbdb;
-  background: white;
-  border-radius: 4px;
-  text-decoration: none;
-  color: #2c3e50;
-  font-size: 0.875rem;
-  transition: all 0.2s;
-}
-
-.btn-external:hover {
-  background: #e9ecef;
-}
-
-.preview-container {
+.preview-body {
   flex: 1;
+  background: #25252b;
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  background: #e9ecef;
-  overflow: auto;
-  padding: 1rem;
-}
-
-.preview-container.mobile {
-  padding: 0.5rem;
-}
-
-.preview-container.desktop {
   padding: 0;
+  overflow: hidden;
 }
 
-.preview-container.mobile .preview-iframe {
-  width: 375px;
-  max-width: 100%;
-  height: calc(100vh - 280px);
-  border: 1px solid #d5dbdb;
-  border-radius: 8px;
-  background: white;
-}
-
-.preview-container.desktop .preview-iframe {
+.preview-frame {
   width: 100%;
   height: 100%;
   border: none;
+  background: white;
 }
 
+.preview-body.mobile {
+  padding: 1.5rem;
+  background: #3a3a45;
+}
 
-.preview-placeholder {
+.preview-body.mobile .preview-frame {
+  width: 375px;
+  max-height: 100%;
+  aspect-ratio: 9/16;
+  border-radius: 24px;
+  border: 12px solid #000;
+  box-shadow: var(--shadow-lg);
+}
+
+.preview-state {
+  height: 100%;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  height: 100%;
-  color: #7f8c8d;
-  text-align: center;
-  padding: 2rem;
+  align-items: center;
+  color: var(--color-text-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  gap: 0.5rem;
 }
 
-.preview-placeholder p {
-  margin: 0.5rem 0;
+.preview-state .hint {
+  font-size: 0.75rem;
+  font-weight: 400;
 }
 
-.preview-hint {
-  font-size: 0.875rem;
-  color: #95a5a6;
+/* --- Misc --- */
+.loading-full {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1.5rem;
+  color: var(--color-text-dark);
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 
-.btn-primary, .btn-secondary {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  text-decoration: none;
-  display: inline-block;
-  transition: all 0.2s;
+.loader-neon {
+  width: 28px;
+  height: 28px;
+  border: 2px solid rgba(74, 144, 226, 0.1);
+  border-top-color: var(--color-primary);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
 }
 
-.btn-primary {
-  background: #3498db;
-  color: white;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: #2980b9;
+.error-banner {
+  padding: 1rem 1.5rem;
+  background: rgba(217, 83, 79, 0.1);
+  border-bottom: 1px solid var(--color-error);
+  color: var(--color-error);
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
-.btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.field-error {
+  color: var(--color-error);
+  font-size: 0.75rem;
+  margin-top: 0.4rem;
+  font-weight: 500;
 }
 
-.btn-secondary {
-  background: #ecf0f1;
-  color: #2c3e50;
+.field-help {
+  font-size: 0.65rem;
+  color: var(--color-text-dark);
+  margin-top: 0.4rem;
+  line-height: 1.4;
 }
 
-.btn-secondary:hover {
-  background: #d5dbdb;
-}
-
-.btn-danger {
-  padding: 0.5rem 1rem;
-  background: #fee;
-  color: #e74c3c;
-  border: 1px solid #e74c3c;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-danger:hover:not(:disabled) {
-  background: #e74c3c;
-  color: white;
-}
-
-.btn-danger:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.extra-field {
+  border-top: 1px solid var(--glass-border);
+  padding-top: 1rem;
+  margin-top: 0.5rem;
 }
 </style>

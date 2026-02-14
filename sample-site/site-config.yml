@@ -172,6 +172,41 @@ content_types:
         label: "料金（開始価格）"
         placeholder: "例: 月額50,000円〜"
 
+  pages:
+    label: "固定ページ"
+    folder: "content/pages"
+    fields:
+      - key: "title"
+        type: "text"
+        label: "ページタイトル"
+        required: true
+        placeholder: "例: 会社概要"
+      
+      - key: "description"
+        type: "textarea"
+        label: "概要 (SEO)"
+        rows: 3
+      
+      - key: "template"
+        type: "text"
+        label: "テンプレート"
+        default: "pages/page.html"
+        readonly: true
+      
+      - key: "slug"
+        type: "text"
+        label: "カスタムURL"
+        placeholder: "about-us"
+      
+      - key: "draft"
+        type: "toggle"
+        label: "下書き"
+        default: false
+
+      - key: "_content"
+        type: "markdown"
+        label: "ページ内容"
+
 site_settings:
   target_file: "config.toml"
   format: "toml"

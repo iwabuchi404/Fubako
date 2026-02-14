@@ -7,6 +7,7 @@ extra:
   author: 広報部
   thumbnail: /images/news-cloudsync-pro.jpg
 date: '2025-11-26'
+slug: test
 ---
 
 <img src="/images/news-cloudsync-pro.jpg" alt="CloudSync Pro" style="width: 100%; border-radius: 8px; margin-bottom: 2rem;">

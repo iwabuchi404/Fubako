@@ -40,13 +40,14 @@ const projectStore = useProjectStore()
 
 <style scoped>
 .app-header {
-  background: var(--color-primary);
-  color: white;
-  padding: 1rem 2rem;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--color-text-main);
+  padding: 0.75rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: var(--shadow-md);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -54,17 +55,26 @@ const projectStore = useProjectStore()
 
 .app-header h1 {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  font-size: 1.25rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
+  color: var(--color-primary);
+  text-shadow: 0 0 15px var(--color-primary-glow);
 }
 
 .app-header h1::before {
-  content: '🚀';
-  font-size: 1.5rem;
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  background: var(--color-primary);
+  border-radius: 2px;
+  transform: rotate(45deg);
+  box-shadow: 0 0 10px var(--color-primary);
 }
 
 .main-nav {
@@ -73,80 +83,79 @@ const projectStore = useProjectStore()
 }
 
 .main-nav a {
-  color: white;
+  color: var(--color-text-dim);
   text-decoration: none;
-  padding: 0.5rem 1rem;
+  padding: 0.6rem 1.2rem;
   border-radius: var(--radius-md);
-  transition: background 0.2s ease;
+  transition: all 0.3s ease;
   font-weight: 500;
-  font-size: 0.9375rem;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .main-nav a:hover {
-  background: rgba(255, 255, 255, 0.15);
+  color: var(--color-text-main);
+  background: rgba(255, 255, 255, 0.05);
 }
 
-.main-nav a.router-link-exact-active {
-  background: rgba(255, 255, 255, 0.25);
+.main-nav a.router-link-active {
+  color: var(--color-primary);
+  background: rgba(0, 242, 255, 0.05);
+  font-weight: 600;
 }
 
 .app-main {
-  padding: 2rem;
-  max-width: 1800px;
-  margin: 0 auto;
-  animation: fadeIn 0.3s ease-out;
+  /* Remove constraints to allow full-width views like EditView */
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* 通知スタイル */
+/* --- Notifications --- */
 .notification-container {
   position: fixed;
   bottom: 2rem;
   right: 2rem;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 1rem;
   z-index: 1000;
 }
 
 .notification {
-  padding: 1rem 1.5rem;
+  padding: 1.2rem 2rem;
   border-radius: var(--radius-md);
-  color: white;
-  min-width: 300px;
-  box-shadow: var(--shadow-lg);
+  background: var(--color-surface-mid);
+  color: var(--color-text-main);
+  min-width: 320px;
+  box-shadow: var(--shadow-depth);
   display: flex;
   align-items: center;
-  animation: slideIn 0.3s ease-out;
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(10px);
   font-weight: 500;
+  animation: slideInNeon 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .notification.success {
-  background: #27ae60;
-  border-left: 5px solid #1e8449;
+  border-left: 4px solid var(--color-success);
+  color: #fff;
 }
 
 .notification.error {
-  background: #e74c3c;
-  border-left: 5px solid #c0392b;
+  border-left: 4px solid var(--color-error);
+  color: #fff;
 }
 
 .notification.info {
-  background: #3498db;
-  border-left: 5px solid #2980b9;
+  border-left: 4px solid var(--color-primary);
+  color: #fff;
 }
 
-@keyframes slideIn {
+@keyframes slideInNeon {
   from {
-    transform: translateX(100%);
+    transform: translateX(30px);
     opacity: 0;
   }
   to {
