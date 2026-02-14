@@ -182,6 +182,7 @@ site_settings:
         - key: "title"
           label: "サイトタイトル"
           type: "text"
+          required: true
         - key: "description"
           label: "サイト説明"
           type: "textarea"

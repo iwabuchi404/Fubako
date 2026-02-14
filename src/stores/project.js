@@ -7,6 +7,7 @@ export const useProjectStore = defineStore('project', () => {
     const isLoaded = ref(false)
     const previewUrl = ref(null)
     const previewRunning = ref(false)
+    const notifications = ref([])
 
     const contentTypes = computed(() => {
         if (!config.value?.content_types) return []
@@ -26,9 +27,28 @@ export const useProjectStore = defineStore('project', () => {
         if (result.success) {
             config.value = result.config
             isLoaded.value = true
+            notify(`${config.value.site?.name || 'プロジェクト'} を読み込みました`, 'success')
             return true
         } else {
             console.error('Failed to load config:', result.error)
+            notify('設定の読み込みに失敗しました: ' + result.error, 'error')
+            return false
+        }
+    }
+
+    async function openProjectFromHistory(path) {
+        projectPath.value = path
+
+        const result = await window.electronAPI.loadConfig(path)
+        if (result.success) {
+            config.value = result.config
+            isLoaded.value = true
+            notify(`${config.value.site?.name || 'プロジェクト'} を読み込みました`, 'success')
+            return true
+        } else {
+            console.error('Failed to load config:', result.error)
+            notify('設定の読み込みに失敗しました: ' + result.error, 'error')
+            projectPath.value = null
             return false
         }
     }
@@ -39,6 +59,7 @@ export const useProjectStore = defineStore('project', () => {
         isLoaded.value = false
         previewUrl.value = null
         previewRunning.value = false
+        notifications.value = []
     }
 
     async function startPreview() {
@@ -47,11 +68,14 @@ export const useProjectStore = defineStore('project', () => {
             if (result.success) {
                 previewUrl.value = result.url
                 previewRunning.value = true
+                notify('プレビューサーバーを起動しました', 'success')
                 return result
             }
+            notify('プレビューサーバーの起動に失敗しました: ' + result.error, 'error')
             return result
         } catch (error) {
             console.error('Failed to start preview:', error)
+            notify('プレビューサーバーの起動中にエラーが発生しました', 'error')
             return { success: false, error: error.message }
         }
     }
@@ -61,9 +85,19 @@ export const useProjectStore = defineStore('project', () => {
             await window.electronAPI.stopPreview()
             previewUrl.value = null
             previewRunning.value = false
+            notify('プレビューサーバーを停止しました', 'info')
         } catch (error) {
             console.error('Failed to stop preview:', error)
+            notify('プレビューサーバーの停止に失敗しました', 'error')
         }
+    }
+
+    function notify(message, type = 'info', duration = 3000) {
+        const id = Date.now() + Math.random()
+        notifications.value.push({ id, message, type })
+        setTimeout(() => {
+            notifications.value = notifications.value.filter(n => n.id !== id)
+        }, duration)
     }
 
     return {
@@ -73,9 +107,12 @@ export const useProjectStore = defineStore('project', () => {
         contentTypes,
         previewUrl,
         previewRunning,
+        notifications,
         openProject,
+        openProjectFromHistory,
         reset,
         startPreview,
-        stopPreview
+        stopPreview,
+        notify
     }
 })

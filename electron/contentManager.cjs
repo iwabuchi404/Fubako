@@ -254,6 +254,19 @@ async function deleteContent(projectPath, contentType, slug, config) {
     return { success: true };
 }
 
+/**
+ * コンテンツが存在するか確認
+ */
+async function existsContent(projectPath, contentType, slug, config) {
+    const typeConfig = config.content_types[contentType];
+    if (!typeConfig) {
+        throw new Error(`Unknown content type: ${contentType}`);
+    }
+
+    const filePath = path.join(projectPath, typeConfig.folder, `${slug}.md`);
+    return fsSyncModule.existsSync(filePath);
+}
+
 module.exports = {
     parseMarkdown,
     parseFrontmatter,
@@ -263,5 +276,6 @@ module.exports = {
     listContents,
     loadContent,
     saveContent,
-    deleteContent
+    deleteContent,
+    existsContent
 };

@@ -18,6 +18,17 @@
     <main class="app-main">
       <router-view />
     </main>
+
+    <!-- 通知コンテナ -->
+    <div class="notification-container">
+      <div 
+        v-for="note in projectStore.notifications" 
+        :key="note.id" 
+        :class="['notification', note.type]"
+      >
+        {{ note.message }}
+      </div>
+    </div>
   </div>
 </template>
 
@@ -91,6 +102,55 @@ const projectStore = useProjectStore()
     opacity: 0;
   }
   to {
+    opacity: 1;
+  }
+}
+
+/* 通知スタイル */
+.notification-container {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 1000;
+}
+
+.notification {
+  padding: 1rem 1.5rem;
+  border-radius: var(--radius-md);
+  color: white;
+  min-width: 300px;
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  align-items: center;
+  animation: slideIn 0.3s ease-out;
+  font-weight: 500;
+}
+
+.notification.success {
+  background: #27ae60;
+  border-left: 5px solid #1e8449;
+}
+
+.notification.error {
+  background: #e74c3c;
+  border-left: 5px solid #c0392b;
+}
+
+.notification.info {
+  background: #3498db;
+  border-left: 5px solid #2980b9;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
     opacity: 1;
   }
 }

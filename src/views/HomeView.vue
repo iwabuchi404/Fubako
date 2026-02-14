@@ -6,6 +6,31 @@
       <button @click="handleOpenProject" class="btn-primary">
         プロジェクトを開く
       </button>
+
+      <div v-if="projectHistory.length > 0" class="history-section">
+        <h3>最近のプロジェクト</h3>
+        <ul class="history-list">
+          <li
+            v-for="item in projectHistory"
+            :key="item.path"
+            class="history-item"
+            @click="handleOpenFromHistory(item.path)"
+          >
+            <div class="history-info">
+              <span class="history-name">{{ item.name }}</span>
+              <span class="history-path">{{ item.path }}</span>
+              <span class="history-date">{{ formatDate(item.lastOpened) }}</span>
+            </div>
+            <button
+              class="history-remove"
+              @click.stop="handleRemoveHistory(item.path)"
+              title="履歴から削除"
+            >
+              &times;
+            </button>
+          </li>
+        </ul>
+      </div>
     </div>
 
     <div v-else class="dashboard">
@@ -76,7 +101,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useProjectStore } from '../stores/project'
 import { useRouter } from 'vue-router'
 
@@ -84,6 +109,15 @@ const projectStore = useProjectStore()
 const router = useRouter()
 
 const previewStarting = ref(false)
+const projectHistory = ref([])
+
+async function loadHistory() {
+  try {
+    projectHistory.value = await window.electronAPI.getProjectHistory()
+  } catch (error) {
+    console.error('Failed to load project history:', error)
+  }
+}
 
 async function handleOpenProject() {
   const success = await projectStore.openProject()
@@ -91,6 +125,39 @@ async function handleOpenProject() {
     router.push('/')
   }
 }
+
+async function handleOpenFromHistory(projectPath) {
+  const success = await projectStore.openProjectFromHistory(projectPath)
+  if (success) {
+    router.push('/')
+  } else {
+    // 開けなかった場合は履歴を再読み込み（存在しないパスかもしれない）
+    await loadHistory()
+  }
+}
+
+async function handleRemoveHistory(projectPath) {
+  await window.electronAPI.removeProjectHistory(projectPath)
+  await loadHistory()
+}
+
+function formatDate(isoString) {
+  if (!isoString) return ''
+  const date = new Date(isoString)
+  return date.toLocaleDateString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+onMounted(() => {
+  if (!projectStore.isLoaded) {
+    loadHistory()
+  }
+})
 
 async function handleStartPreview() {
   previewStarting.value = true
@@ -131,6 +198,92 @@ async function handleStartPreview() {
   font-size: 1.25rem;
   margin-bottom: 2.5rem;
   color: var(--color-text-secondary);
+}
+
+.history-section {
+  margin-top: 3rem;
+  text-align: left;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.history-section h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid var(--color-gray-200);
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--color-gray-200);
+  border-radius: var(--radius-md);
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: white;
+}
+
+.history-item:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.history-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.history-name {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  font-size: 0.9375rem;
+}
+
+.history-path {
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-date {
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.history-remove {
+  background: none;
+  border: none;
+  font-size: 1.25rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.history-remove:hover {
+  background: #fee;
+  color: #e74c3c;
 }
 
 .dashboard {

@@ -64,6 +64,7 @@
             />
 
             <p v-if="field.help" class="field-help">{{ field.help }}</p>
+            <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
           </div>
         </div>
       </div>
@@ -78,6 +79,7 @@ import { useProjectStore } from '../stores/project'
 const projectStore = useProjectStore()
 
 const formData = reactive({})
+const fieldErrors = reactive({})
 const loading = ref(false)
 const saving = ref(false)
 const errorMessage = ref('')
@@ -114,7 +116,28 @@ async function loadSettings() {
   }
 }
 
+function validateForm() {
+  Object.keys(fieldErrors).forEach(key => delete fieldErrors[key])
+  let isValid = true
+
+  groups.value.forEach(group => {
+    group.fields.forEach(field => {
+      if (field.required && !formData[field.key]) {
+        fieldErrors[field.key] = 'この項目は必須です'
+        isValid = false
+      }
+    })
+  })
+
+  return isValid
+}
+
 async function handleSave() {
+  if (!validateForm()) {
+    projectStore.notify('入力内容を確認してください', 'error')
+    return false
+  }
+
   saving.value = true
   errorMessage.value = ''
   
@@ -122,16 +145,16 @@ async function handleSave() {
     const result = await window.electronAPI.saveSiteSettings(toRaw(formData))
     
     if (result.success) {
-      alert('設定を保存しました')
+      projectStore.notify('設定を保存しました', 'success')
     } else {
       const errMsg = '保存に失敗しました: ' + (result.error || '原因不明')
-      alert(errMsg)
+      projectStore.notify(errMsg, 'error')
       errorMessage.value = errMsg
     }
   } catch (error) {
     console.error('Save error:', error)
     const errMsg = '保存に失敗しました: ' + error.message
-    alert(errMsg)
+    projectStore.notify(errMsg, 'error')
     errorMessage.value = errMsg
   } finally {
     saving.value = false
@@ -283,6 +306,13 @@ onMounted(async () => {
   margin-top: 0.25rem;
   font-size: 0.85rem;
   color: #7f8c8d;
+}
+
+.field-error {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #e74c3c;
+  font-weight: 600;
 }
 
 .btn-primary {

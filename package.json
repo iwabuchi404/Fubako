@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
+    "@kamox/plugin-chrome": "^0.1.5",
     "js-yaml": "^4.1.1",
     "pinia": "^3.0.4",
     "uuid": "^13.0.0",
@@ -18,11 +19,13 @@
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
+    "@kamox/plugin-electron": "^0.1.7",
     "@vitejs/plugin-vue": "^6.0.1",
     "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "^28.3.3",
     "electron-builder": "^26.0.12",
+    "kamox": "^0.1.8",
     "vite": "npm:rolldown-vite@7.2.5",
     "wait-on": "^9.0.3"
   },

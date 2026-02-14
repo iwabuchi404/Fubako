@@ -11,6 +11,47 @@ let currentConfig = null;
 
 let zolaProcess = null;
 
+// プロジェクト履歴管理
+const MAX_HISTORY = 10;
+
+function getHistoryPath() {
+  return path.join(app.getPath('userData'), 'project-history.json');
+}
+
+function loadHistory() {
+  try {
+    const historyPath = getHistoryPath();
+    if (fs.existsSync(historyPath)) {
+      return JSON.parse(fs.readFileSync(historyPath, 'utf-8'));
+    }
+  } catch (error) {
+    console.error('Failed to load project history:', error);
+  }
+  return [];
+}
+
+function saveHistory(history) {
+  try {
+    fs.writeFileSync(getHistoryPath(), JSON.stringify(history, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Failed to save project history:', error);
+  }
+}
+
+function addToHistory(projectPath, siteName) {
+  const history = loadHistory();
+  // 重複削除
+  const filtered = history.filter(item => item.path !== projectPath);
+  // 先頭に追加
+  filtered.unshift({
+    path: projectPath,
+    name: siteName || path.basename(projectPath),
+    lastOpened: new Date().toISOString()
+  });
+  // 最大件数で切り詰め
+  saveHistory(filtered.slice(0, MAX_HISTORY));
+}
+
 function handleZolaError(stderr, event) {
   const ERROR_PATTERNS = {
     brokenLink: {
@@ -79,6 +120,9 @@ function startZola(projectPath, event) {
 
 // IPC Handlers
 ipcMain.handle('open-project', async () => {
+  if (process.env.FUBAKO_AUTO_PROJECT && fs.existsSync(process.env.FUBAKO_AUTO_PROJECT)) {
+    return process.env.FUBAKO_AUTO_PROJECT;
+  }
   const result = await dialog.showOpenDialog({
     properties: ['openDirectory']
   });
@@ -100,6 +144,9 @@ ipcMain.handle('load-config', async (event, projectPath) => {
     // グローバルに保存
     currentProjectPath = projectPath;
     currentConfig = config;
+
+    // 履歴に追加
+    addToHistory(projectPath, config.site?.name);
 
     return { success: true, config };
   } catch (error) {
@@ -148,6 +195,22 @@ ipcMain.handle('save-content', async (event, { type, slug, data }) => {
   }
 });
 
+ipcMain.handle('select-image-file', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openFile'],
+      filters: [
+        { name: '画像ファイル', extensions: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'] }
+      ]
+    })
+    if (result.canceled) return null
+    return result.filePaths[0]
+  } catch (error) {
+    console.error('Failed to select image file:', error)
+    return null
+  }
+})
+
 ipcMain.handle('upload-image', async (event, { filePath }) => {
   try {
     if (!currentProjectPath) {
@@ -157,6 +220,19 @@ ipcMain.handle('upload-image', async (event, { filePath }) => {
     return result;
   } catch (error) {
     console.error('Failed to upload image:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('delete-content', async (event, { type, slug }) => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await contentManager.deleteContent(currentProjectPath, type, slug, currentConfig);
+    return result;
+  } catch (error) {
+    console.error('Failed to delete content:', error);
     return { success: false, error: error.message };
   }
 });
@@ -241,6 +317,35 @@ ipcMain.handle('save-site-settings', async (event, newSettings) => {
   }
 });
 
+ipcMain.handle('get-project-history', async () => {
+  return loadHistory();
+});
+
+ipcMain.handle('remove-project-history', async (event, projectPath) => {
+  try {
+    const history = loadHistory();
+    const filtered = history.filter(item => item.path !== projectPath);
+    saveHistory(filtered);
+    return { success: true };
+  } catch (error) {
+    console.error('Failed to remove project history:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('exists-content', async (event, { type, slug }) => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const exists = await contentManager.existsContent(currentProjectPath, type, slug, currentConfig);
+    return { success: true, exists };
+  } catch (error) {
+    console.error('Failed to check content existence:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 
 
 
@@ -265,8 +370,23 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
+
+  // オートメーション用：環境変数があれば自動セット
+  if (process.env.FUBAKO_AUTO_PROJECT && fs.existsSync(process.env.FUBAKO_AUTO_PROJECT)) {
+    currentProjectPath = process.env.FUBAKO_AUTO_PROJECT;
+    try {
+      const configPath = path.join(currentProjectPath, 'site-config.yml');
+      if (fs.existsSync(configPath)) {
+        const yamlContent = fs.readFileSync(configPath, 'utf8');
+        currentConfig = yaml.load(yamlContent);
+        console.log('[Main] Auto-set project state:', currentProjectPath);
+      }
+    } catch (error) {
+      console.error('[Main] Failed to auto-set project state:', error);
+    }
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

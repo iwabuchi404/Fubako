@@ -39,13 +39,19 @@
           <td v-for="col in displayColumns" :key="col.key">
             {{ item[col.key] || '-' }}
           </td>
-          <td>
-            <router-link 
+          <td class="actions-cell">
+            <router-link
               :to="`/edit/${type}/${item.slug}`"
               class="btn-edit"
             >
               編集
             </router-link>
+            <button
+              @click="handleDelete(item.slug, item.title)"
+              class="btn-delete"
+            >
+              削除
+            </button>
           </td>
         </tr>
       </tbody>
@@ -114,6 +120,25 @@ async function loadContents() {
     console.error('Failed to load contents:', error)
   } finally {
     loading.value = false
+  }
+}
+
+async function handleDelete(slug, title) {
+  if (!confirm(`「${title || slug}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.deleteContent(type.value, slug)
+    if (result.success) {
+      projectStore.notify('削除しました', 'success')
+      await loadContents()
+    } else {
+      projectStore.notify('削除に失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Delete error:', error)
+    projectStore.notify('削除に失敗しました', 'error')
   }
 }
 
@@ -204,6 +229,28 @@ onMounted(() => {
 
 .btn-edit:hover {
   background: #d5dbdb;
+}
+
+.actions-cell {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-delete {
+  padding: 0.25rem 0.75rem;
+  background: #fee;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-delete:hover {
+  background: #e74c3c;
+  color: white;
 }
 
 .status-badge {

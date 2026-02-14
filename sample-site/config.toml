@@ -1,5 +1,5 @@
 base_url = "http://localhost:1111"
-title = "株式会社テクノロジーイノベーション"
+title = ""
 description = "最先端のITソリューションで、ビジネスの未来を創造します"
 default_language = "ja"
 compile_sass = true

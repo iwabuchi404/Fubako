@@ -15,6 +15,14 @@
         <button @click="handleSave" class="btn-primary" :disabled="saving">
           {{ saving ? '保存中...' : '保存' }}
         </button>
+        <button
+          v-if="!isNew"
+          @click="handleDelete"
+          class="btn-danger"
+          :disabled="saving"
+        >
+          削除
+        </button>
         <router-link :to="`/contents/${type}`" class="btn-secondary">
           キャンセル
         </router-link>
@@ -146,6 +154,7 @@
           </div>
 
           <p v-if="field.help" class="field-help">{{ field.help }}</p>
+          <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
         </div>
       </div>
 
@@ -214,11 +223,19 @@ const slug = computed(() => route.params.slug)
 const isNew = computed(() => !slug.value)
 
 const formData = reactive({})
+const fieldErrors = reactive({})
 const loading = ref(false)
 const saving = ref(false)
+const isDirty = ref(false)
 const previewUrl = ref(null)
 const errorMessage = ref('')
 const previewMode = ref('desktop') // 'mobile' or 'desktop'
+
+// フォームの変更を監視
+import { watch } from 'vue'
+watch(formData, () => {
+  isDirty.value = true
+}, { deep: true })
 
 const contentTypeConfig = computed(() => {
   return projectStore.config?.content_types?.[type.value]
@@ -299,7 +316,37 @@ async function loadContent() {
   }
 }
 
+async function validateForm() {
+  Object.keys(fieldErrors).forEach(key => delete fieldErrors[key])
+  let isValid = true
+
+  // 必須チェック
+  fields.value.forEach(field => {
+    if (field.required && !formData[field.key]) {
+      fieldErrors[field.key] = 'この項目は必須です'
+      isValid = false
+    }
+  })
+
+  // スラグ重複チェック（新規作成時のみ）
+  if (isNew.value && isValid) {
+    const saveSlug = generateSlug()
+    const result = await window.electronAPI.existsContent({ type: type.value, slug: saveSlug })
+    if (result.success && result.exists) {
+      errorMessage.value = '同じスラグ（ファイル名）の記事が既に存在します。タイトルを変更してください。'
+      isValid = false
+    }
+  }
+
+  return isValid
+}
+
 async function handleSave() {
+  if (!(await validateForm())) {
+    projectStore.notify('入力内容を確認してください', 'error')
+    return false
+  }
+
   saving.value = true
   errorMessage.value = ''
   
@@ -317,8 +364,9 @@ async function handleSave() {
     console.log('[EditView] Save result:', result)
     
     if (result.success) {
-      alert('保存しました')
+      projectStore.notify('保存しました', 'success')
       errorMessage.value = ''
+      isDirty.value = false
       
       // プレビューURLを更新
       updatePreviewUrl()
@@ -331,14 +379,14 @@ async function handleSave() {
     } else {
       const errMsg = '保存に失敗しました: ' + (result.error || '原因不明')
       console.error('[EditView] Save failed:', result)
-      alert(errMsg)
+      projectStore.notify(errMsg, 'error')
       errorMessage.value = errMsg
       return false
     }
   } catch (error) {
     console.error('[EditView] Save error:', error)
     const errMsg = '保存に失敗しました: ' + error.message
-    alert(errMsg)
+    projectStore.notify(errMsg, 'error')
     errorMessage.value = errMsg
     return false
   } finally {
@@ -370,32 +418,43 @@ async function openInBrowser() {
 }
 
 async function handleImageUpload(key) {
-  // ファイル選択ダイアログを表示
-  const input = document.createElement('input')
-  input.type = 'file'
-  input.accept = 'image/*'
-  
-  input.onchange = async (e) => {
-    const file = e.target.files[0]
-    if (!file) return
-    
-    try {
-      // ファイルパスを取得（Electronの場合）
-      const result = await window.electronAPI.uploadImage(file.path)
-      
-      if (result.success) {
-        formData[key] = result.path
-        alert('画像をアップロードしました')
-      } else {
-        alert('アップロードに失敗しました: ' + result.error)
-      }
-    } catch (error) {
-      console.error('Upload error:', error)
-      alert('アップロードに失敗しました')
+  try {
+    // Electronのファイル選択ダイアログで画像を選択
+    const filePath = await window.electronAPI.selectImageFile()
+    if (!filePath) return
+
+    const result = await window.electronAPI.uploadImage(filePath)
+
+    if (result.success) {
+      formData[key] = result.path
+      projectStore.notify('画像をアップロードしました', 'success')
+    } else {
+      projectStore.notify('アップロードに失敗しました: ' + result.error, 'error')
     }
+  } catch (error) {
+    console.error('Upload error:', error)
+    projectStore.notify('アップロードに失敗しました', 'error')
   }
-  
-  input.click()
+}
+
+async function handleDelete() {
+  const title = formData.title || slug.value
+  if (!confirm(`「${title}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+    return
+  }
+
+  try {
+    const result = await window.electronAPI.deleteContent(type.value, slug.value)
+    if (result.success) {
+      projectStore.notify('削除しました', 'success')
+      router.push(`/contents/${type.value}`)
+    } else {
+      projectStore.notify('削除に失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Delete error:', error)
+    projectStore.notify('削除に失敗しました', 'error')
+  }
 }
 
 onMounted(async () => {
@@ -667,6 +726,13 @@ input:checked + .toggle-slider:before {
   color: #7f8c8d;
 }
 
+.field-error {
+  margin-top: 0.25rem;
+  font-size: 0.85rem;
+  color: #e74c3c;
+  font-weight: 600;
+}
+
 .preview-panel {
   border: 1px solid #d5dbdb;
   border-radius: 8px;
@@ -811,5 +877,25 @@ input:checked + .toggle-slider:before {
 
 .btn-secondary:hover {
   background: #d5dbdb;
+}
+
+.btn-danger {
+  padding: 0.5rem 1rem;
+  background: #fee;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #e74c3c;
+  color: white;
+}
+
+.btn-danger:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 </style>
