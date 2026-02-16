@@ -13,10 +13,21 @@ contextBridge.exposeInMainWorld('electronAPI', {
     startPreview: () => ipcRenderer.invoke('start-preview'),
     stopPreview: () => ipcRenderer.invoke('stop-preview'),
     openInBrowser: (url) => ipcRenderer.invoke('open-in-browser', url),
-    onZolaError: (callback) => ipcRenderer.on('zola-error', (_event, value) => callback(value)),
+    onZolaError: (callback) => {
+        const handler = (_event, value) => callback(value)
+        ipcRenderer.on('zola-error', handler)
+        // クリーンアップ用の関数を返す
+        return () => ipcRenderer.removeListener('zola-error', handler)
+    },
     loadSiteSettings: () => ipcRenderer.invoke('load-site-settings'),
     saveSiteSettings: (settings) => ipcRenderer.invoke('save-site-settings', settings),
     existsContent: (params) => ipcRenderer.invoke('exists-content', params),
     getProjectHistory: () => ipcRenderer.invoke('get-project-history'),
     removeProjectHistory: (projectPath) => ipcRenderer.invoke('remove-project-history', projectPath),
+    resizeImage: (params) => ipcRenderer.invoke('resize-image', params),
+    generateDummyImage: (options) => ipcRenderer.invoke('generate-dummy-image', options),
+    getServerInfo: () => ipcRenderer.invoke('get-server-info'),
+    checkSlugCollision: (params) => ipcRenderer.invoke('check-slug-collision', params),
+    resolveSlugCollision: (params) => ipcRenderer.invoke('resolve-slug-collision', params),
+    detectAllSlugCollisions: () => ipcRenderer.invoke('detect-all-slug-collisions'),
 });

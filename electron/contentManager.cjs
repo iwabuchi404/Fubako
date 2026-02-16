@@ -267,6 +267,154 @@ async function existsContent(projectPath, contentType, slug, config) {
     return fsSyncModule.existsSync(filePath);
 }
 
+/**
+ * ファイル名からZolaが生成するURLスラグを抽出
+ * Zolaは YYYY-MM-DD- プレフィックスを自動的に除去する
+ */
+function extractZolaSlug(filename) {
+    const datePrefix = /^\d{4}-\d{2}-\d{2}-/;
+    return datePrefix.test(filename) ? filename.replace(datePrefix, '') : filename;
+}
+
+/**
+ * Zolaのスラグコリジョンをチェック
+ * 同じURLスラグを生成するファイルが既に存在するかチェック
+ */
+async function checkSlugCollision(projectPath, contentType, newSlug, config, excludeSlug = null) {
+    const typeConfig = config.content_types[contentType];
+    if (!typeConfig) {
+        throw new Error(`Unknown content type: ${contentType}`);
+    }
+
+    const folderPath = path.join(projectPath, typeConfig.folder);
+    if (!fsSyncModule.existsSync(folderPath)) {
+        return { collision: false, collidingFile: null };
+    }
+
+    const newZolaSlug = extractZolaSlug(newSlug);
+    const files = await fs.readdir(folderPath);
+
+    for (const file of files) {
+        if (!file.endsWith('.md') || file === '_index.md') continue;
+
+        const existingSlug = file.replace('.md', '');
+        // 自分自身は除外
+        if (excludeSlug && existingSlug === excludeSlug) continue;
+
+        if (extractZolaSlug(existingSlug) === newZolaSlug) {
+            return { collision: true, collidingFile: existingSlug };
+        }
+    }
+
+    return { collision: false, collidingFile: null };
+}
+
+/**
+ * 重複スラグを一意なスラグに自動修正
+ */
+async function resolveSlugCollision(projectPath, contentType, duplicateSlug, config) {
+    const typeConfig = config.content_types[contentType];
+    if (!typeConfig) {
+        throw new Error(`Unknown content type: ${contentType}`);
+    }
+
+    const folderPath = path.join(projectPath, typeConfig.folder);
+    if (!fsSyncModule.existsSync(folderPath)) {
+        return { success: false, error: 'Folder not found' };
+    }
+
+    const newZolaSlug = extractZolaSlug(duplicateSlug);
+    const files = await fs.readdir(folderPath);
+    const collidingFiles = [];
+
+    // 重複するファイルをすべて収集
+    for (const file of files) {
+        if (!file.endsWith('.md') || file === '_index.md') continue;
+        const existingSlug = file.replace('.md', '');
+
+        if (extractZolaSlug(existingSlug) === newZolaSlug) {
+            collidingFiles.push(existingSlug);
+        }
+    }
+
+    if (collidingFiles.length < 2) {
+        return { success: false, error: 'No collision found' };
+    }
+
+    // 重複を解決：最初のファイル以外は一意なスラグを生成
+    const results = [];
+    for (let i = 1; i < collidingFiles.length; i++) {
+        const oldSlug = collidingFiles[i];
+        const newSlug = `${newZolaSlug}-${i + 1}`;
+        const oldPath = path.join(folderPath, `${oldSlug}.md`);
+        const newPath = path.join(folderPath, `${newSlug}.md`);
+
+        try {
+            // ファイルをリネーム
+            await fs.rename(oldPath, newPath);
+
+            // 新しいファイル内のslugフィールドも更新
+            const { frontmatterYaml, body } = await parseMarkdown(newPath);
+            const frontmatter = parseFrontmatter(frontmatterYaml);
+
+            if (frontmatter.slug) {
+                frontmatter.slug = newSlug;
+                const newMarkdown = buildMarkdown(frontmatter, body);
+                await fs.writeFile(newPath, newMarkdown, 'utf-8');
+            }
+
+            results.push({
+                oldSlug,
+                newSlug,
+                path: newPath
+            });
+        } catch (error) {
+            console.error(`Failed to resolve collision for ${oldSlug}:`, error);
+        }
+    }
+
+    return { success: true, resolvedCount: results.length, details: results };
+}
+
+/**
+ * コンテンツタイプ内のすべてのスラグ衝突を検出
+ */
+async function detectAllSlugCollisions(projectPath, config) {
+    const collisions = [];
+
+    for (const [contentType, typeConfig] of Object.entries(config.content_types)) {
+        const folderPath = path.join(projectPath, typeConfig.folder);
+        if (!fsSyncModule.existsSync(folderPath)) continue;
+
+        const files = await fs.readdir(folderPath);
+        const slugMap = {};
+
+        for (const file of files) {
+            if (!file.endsWith('.md') || file === '_index.md') continue;
+            const slug = file.replace('.md', '');
+            const zolaSlug = extractZolaSlug(slug);
+
+            if (!slugMap[zolaSlug]) {
+                slugMap[zolaSlug] = [];
+            }
+            slugMap[zolaSlug].push(slug);
+        }
+
+        // 重複がある場合
+        for (const [zolaSlug, slugs] of Object.entries(slugMap)) {
+            if (slugs.length > 1) {
+                collisions.push({
+                    contentType,
+                    zolaSlug,
+                    collidingFiles: slugs
+                });
+            }
+        }
+    }
+
+    return collisions;
+}
+
 module.exports = {
     parseMarkdown,
     parseFrontmatter,
@@ -277,5 +425,8 @@ module.exports = {
     loadContent,
     saveContent,
     deleteContent,
-    existsContent
+    existsContent,
+    checkSlugCollision,
+    resolveSlugCollision,
+    detectAllSlugCollisions
 };

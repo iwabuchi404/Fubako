@@ -21,6 +21,37 @@
       <i class="icon-warning">!</i> {{ errorMessage }}
     </div>
 
+    <!-- Build Status Bar -->
+    <div v-if="projectStore.previewBuildStatus === 'building'" class="build-status-bar">
+      <div class="build-indicator">
+        <div class="loader-pulse"></div>
+        <span>{{ projectStore.previewBuildMessage || 'ビルド中...' }}</span>
+      </div>
+    </div>
+
+    <!-- Error Status Bar -->
+    <div v-if="projectStore.previewBuildStatus === 'error'" class="error-status-bar">
+      <div class="error-indicator">
+        <i class="icon-error">!</i>
+        <span>ビルドエラーが発生しました</span>
+      </div>
+      <button @click="showBuildError = !showBuildError" class="btn-toggle-error">
+        {{ showBuildError ? '詳細を隠す' : '詳細を表示' }}
+      </button>
+      <div v-if="showBuildError" class="build-error-details">
+        <h4>エラー詳細</h4>
+        <p>{{ projectStore.previewBuildError || '不明なエラー' }}</p>
+        <div class="error-actions">
+          <button @click="handleRebuildPreview" class="btn-secondary btn-sm">
+            リビルドを試す
+          </button>
+          <button @click="showBuildError = false" class="btn-primary btn-sm">
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+
     <div v-else-if="!loading" class="settings-main-layout">
       <!-- Vertical Tabs Navigation -->
       <aside class="settings-nav glass">
@@ -79,6 +110,12 @@
           </div>
         </div>
       </main>
+
+      <!-- Preview Panel -->
+      <PreviewPanel 
+        :is-new="false"
+        :initial-width="400"
+      />
     </div>
   </div>
 </template>
@@ -86,42 +123,40 @@
 <script setup>
 import { ref, reactive, computed, onMounted, toRaw } from 'vue'
 import { useProjectStore } from '../stores/project'
+import PreviewPanel from '../components/PreviewPanel.vue'
 
 const projectStore = useProjectStore()
 
 const formData = reactive({})
 const fieldErrors = reactive({})
-const loading = ref(false)
+const loading = computed(() => projectStore.isSettingsLoading())
 const saving = ref(false)
-const errorMessage = ref('')
+const errorMessage = computed(() => projectStore.getSettingsError())
 const activeTab = ref('basic')
+const showBuildError = ref(false)
 
 const groups = computed(() => {
   return projectStore.config?.site_settings?.groups || []
 })
 
+async function handleRebuildPreview() {
+  showBuildError.value = false
+  await projectStore.rebuildPreview()
+}
+
 async function loadSettings() {
-  loading.value = true
-  errorMessage.value = ''
-  
   try {
-    const result = await window.electronAPI.loadSiteSettings()
+    const settings = await projectStore.fetchSiteSettings()
     
-    if (result.success) {
-      Object.keys(formData).forEach(key => delete formData[key])
-      Object.assign(formData, result.settings)
-      
-      if (groups.value.length > 0) {
-        activeTab.value = groups.value[0].id
-      }
-    } else {
-      errorMessage.value = '設定の読み込みに失敗しました: ' + result.error
+    Object.keys(formData).forEach(key => delete formData[key])
+    Object.assign(formData, settings)
+    
+    if (groups.value.length > 0) {
+      activeTab.value = groups.value[0].id
     }
   } catch (error) {
     console.error('Failed to load settings:', error)
-    errorMessage.value = '設定の読み込みに失敗しました: ' + error.message
-  } finally {
-    loading.value = false
+    // エラーメッセージはストアから取得
   }
 }
 
@@ -148,23 +183,14 @@ async function handleSave() {
   }
 
   saving.value = true
-  errorMessage.value = ''
   
   try {
-    const result = await window.electronAPI.saveSiteSettings(toRaw(formData))
-    
-    if (result.success) {
-      projectStore.notify('設定を保存しました', 'success')
-    } else {
-      const errMsg = '保存に失敗しました: ' + (result.error || '原因不明')
-      projectStore.notify(errMsg, 'error')
-      errorMessage.value = errMsg
-    }
+    await projectStore.updateSiteSettings(toRaw(formData))
+    return true
   } catch (error) {
     console.error('Save error:', error)
-    const errMsg = '保存に失敗しました: ' + error.message
-    projectStore.notify(errMsg, 'error')
-    errorMessage.value = errMsg
+    // エラーメッセージはストアから取得
+    return false
   } finally {
     saving.value = false
   }
@@ -177,7 +203,7 @@ onMounted(async () => {
 
 <style scoped>
 .settings-view {
-  max-width: 1400px;
+  width: 100%;
   margin: 0 auto;
   padding: 1.5rem 2.5rem;
   height: calc(100vh - 60px); /* Adjust for header height */
@@ -212,7 +238,7 @@ onMounted(async () => {
 .settings-main-layout {
   flex: 1;
   display: grid;
-  grid-template-columns: 280px 1fr;
+  grid-template-columns: 280px 1fr auto;
   gap: 2rem;
   overflow: hidden;
 }
@@ -331,5 +357,110 @@ onMounted(async () => {
   align-items: center;
   gap: 1rem;
   font-weight: 600;
+}
+
+/* --- Build Status Bar --- */
+.build-status-bar {
+  position: relative;
+  background: rgba(245, 158, 11, 0.1);
+  border-bottom: 2px solid rgba(245, 158, 11, 0.5);
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(10px);
+  margin-bottom: 0;
+}
+
+.build-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #f59e0b;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.loader-pulse {
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(245, 158, 11, 0.3);
+  border-top-color: #f59e0b;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* --- Error Status Bar --- */
+.error-status-bar {
+  position: relative;
+  background: rgba(255, 107, 107, 0.1);
+  border-bottom: 2px solid rgba(255, 107, 107, 0.5);
+  padding: 1rem 1.5rem;
+  backdrop-filter: blur(10px);
+  margin-bottom: 0;
+}
+
+.error-indicator {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: #ff6b6b;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.icon-error {
+  font-style: normal;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.btn-toggle-error {
+  background: transparent;
+  border: 1px solid var(--color-error);
+  color: var(--color-error);
+  padding: 0.4rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.btn-toggle-error:hover {
+  background: rgba(255, 107, 107, 0.1);
+}
+
+.build-error-details {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  border-left: 3px solid var(--color-error);
+}
+
+.build-error-details h4 {
+  margin: 0 0 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--color-error);
+}
+
+.build-error-details p {
+  margin: 0 0 1rem 0;
+  font-size: 0.8rem;
+  color: var(--color-text-dark);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.error-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
 }
 </style>

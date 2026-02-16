@@ -70,7 +70,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/project'
 
@@ -78,8 +78,17 @@ const route = useRoute()
 const projectStore = useProjectStore()
 
 const type = computed(() => route.params.type)
-const contents = ref([])
-const loading = ref(false)
+const contents = computed(() => projectStore.contents[type.value] || [])
+const loading = computed(() => projectStore.isLoading(`contents/${type.value}`))
+
+// ページ遷移時に強制リフレッシュ（キャッシュクリア）
+watch(() => route.path, (newPath, oldPath) => {
+  // コンテンツ一覧画面に戻ってきた時のみリロード
+  if (newPath.startsWith('/contents/') && newPath !== oldPath) {
+    console.log('[ContentsListView] Force refreshing contents due to navigation')
+    loadContents()
+  }
+})
 
 const contentTypeConfig = computed(() => {
   return projectStore.config?.content_types?.[type.value]
@@ -121,14 +130,10 @@ function getPublishStatus(item) {
 }
 
 async function loadContents() {
-  loading.value = true
   try {
-    const result = await window.electronAPI.listContents(type.value)
-    contents.value = result
+    await projectStore.fetchContents(type.value)
   } catch (error) {
     console.error('Failed to load contents:', error)
-  } finally {
-    loading.value = false
   }
 }
 
@@ -138,16 +143,11 @@ async function handleDelete(slug, title) {
   }
 
   try {
-    const result = await window.electronAPI.deleteContent(type.value, slug)
-    if (result.success) {
-      projectStore.notify('削除しました', 'success')
-      await loadContents()
-    } else {
-      projectStore.notify('削除に失敗しました: ' + result.error, 'error')
-    }
+    await projectStore.deleteContent(type.value, slug)
+    // オプティミスティック削除により、自動的に一覧から削除される
   } catch (error) {
     console.error('Delete error:', error)
-    projectStore.notify('削除に失敗しました', 'error')
+    // エラーメッセージはストアから自動通知
   }
 }
 
@@ -170,19 +170,25 @@ onMounted(() => {
   margin-bottom: 3rem;
 }
 
+.title-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .type-tag {
   font-family: var(--font-mono);
-  font-size: 0.7rem;
-  color: var(--color-text-dark);
+  font-size: 0.65rem;
+  color: var(--color-primary);
   text-transform: uppercase;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.25em;
   display: block;
 }
 
 .header h2 {
-  font-size: 2.5rem;
+  font-size: 2rem;
   margin: 0;
-  line-height: 1;
+  letter-spacing: -0.02em;
 }
 
 .table-container {
@@ -191,7 +197,8 @@ onMounted(() => {
 }
 
 .contents-table {
-  border: none;
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .col-status { width: 150px; }
@@ -229,6 +236,7 @@ onMounted(() => {
 .status-scheduled {
   color: var(--color-warning);
   border-color: rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.1);
 }
 
 .status-draft {
@@ -245,6 +253,14 @@ onMounted(() => {
 }
 
 .empty-state {
+  padding: 4rem 2rem;
+  text-align: center;
   border: 1px dashed var(--glass-border);
+}
+
+.empty-state p {
+  color: var(--color-text-dim);
+  font-size: 1.1rem;
+  margin: 0 0 2rem 2rem;
 }
 </style>

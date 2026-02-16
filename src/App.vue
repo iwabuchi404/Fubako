@@ -19,6 +19,9 @@
       <router-view />
     </main>
 
+    <!-- プレビューステータスバー -->
+    <PreviewStatus v-if="projectStore.isLoaded" />
+    
     <!-- 通知コンテナ -->
     <div class="notification-container">
       <div 
@@ -33,9 +36,22 @@
 </template>
 
 <script setup>
+import { onMounted, onUnmounted } from 'vue'
 import { useProjectStore } from './stores/project'
+import PreviewStatus from './components/PreviewStatus.vue'
 
 const projectStore = useProjectStore()
+
+onMounted(() => {
+  // プロジェクトが既にロードされている場合（自動ロード等）のフォールバック
+  if (projectStore.isLoaded) {
+    projectStore.setupZolaErrorListener()
+  }
+})
+
+onUnmounted(() => {
+  projectStore.cleanupZolaErrorListener()
+})
 </script>
 
 <style scoped>
@@ -110,12 +126,13 @@ const projectStore = useProjectStore()
   min-height: calc(100vh - 60px);
   display: flex;
   flex-direction: column;
+  padding-bottom: 60px; /* PreviewStatusバーの分の余白 */
 }
 
 /* --- Notifications --- */
 .notification-container {
   position: fixed;
-  bottom: 2rem;
+  bottom: calc(2rem + 60px); /* PreviewStatusバーの分を考慮 */
   right: 2rem;
   display: flex;
   flex-direction: column;

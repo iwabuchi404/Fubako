@@ -10,6 +10,8 @@ let currentProjectPath = null;
 let currentConfig = null;
 
 let zolaProcess = null;
+let mainWindow = null;
+let zolaStoppedIntentionally = false;
 
 // プロジェクト履歴管理
 const MAX_HISTORY = 10;
@@ -52,37 +54,25 @@ function addToHistory(projectPath, siteName) {
   saveHistory(filtered.slice(0, MAX_HISTORY));
 }
 
-function handleZolaError(stderr, event) {
-  const ERROR_PATTERNS = {
-    brokenLink: {
-      regex: /Broken link in (.+): tried to link to (.+)/,
-      getMessage: (matches) => `${matches[1]} 内のリンク「${matches[2]}」が見つかりません`
-    },
-    frontmatterError: {
-      regex: /Failed to parse front matter/,
-      getMessage: () => '記事の設定データに誤りがあります。YAMLの形式を確認してください。'
-    }
-  };
-
-  for (const [type, pattern] of Object.entries(ERROR_PATTERNS)) {
-    const match = stderr.match(pattern.regex);
-    if (match) {
-      event.sender.send('zola-error', {
-        type,
-        message: pattern.getMessage(match),
-        raw: stderr
-      });
-      return;
-    }
-  }
-
-  // その他のエラー
-  // event.sender.send('zola-error', { type: 'unknown', message: 'ビルドエラー', raw: stderr });
-}
-
-function startZola(projectPath, event) {
+function startZola(projectPath, event = null) {
   if (zolaProcess) {
+    zolaStoppedIntentionally = true;
     zolaProcess.kill();
+    zolaProcess = null;
+  }
+  zolaStoppedIntentionally = false;
+
+  // ポートを site-config.yml から取得
+  let port = '1111'; // デフォルト
+  if (currentConfig?.site?.preview_url) {
+    try {
+      const url = new URL(currentConfig.site.preview_url);
+      if (url.port) {
+        port = url.port;
+      }
+    } catch (e) {
+      console.warn('Failed to parse preview_url from config:', e);
+    }
   }
 
   const zolaBin = process.platform === 'win32' ? 'zola.exe' : 'zola';
@@ -92,15 +82,20 @@ function startZola(projectPath, event) {
     ? path.join(__dirname, '../bin', zolaBin)
     : path.join(process.resourcesPath, 'bin', zolaBin);
 
-  console.log(`Starting Zola from: ${zolaPath}`);
+  console.log(`Starting Zola on port ${port} from: ${zolaPath}`);
 
   if (!fs.existsSync(zolaPath)) {
     console.error('Zola binary not found');
-    event.sender.send('zola-error', { type: 'system', message: `Zolaバイナリが見つかりません: ${zolaPath}` });
+    const msg = `Zolaバイナリが見つかりません: ${zolaPath}`;
+    if (event) {
+      event.sender.send('zola-error', { type: 'system', message: msg });
+    } else if (mainWindow) {
+      mainWindow.webContents.send('zola-error', { type: 'system', message: msg });
+    }
     return false;
   }
 
-  zolaProcess = spawn(zolaPath, ['serve', '--port', '1111'], {
+  zolaProcess = spawn(zolaPath, ['serve', '--port', port], {
     cwd: projectPath,
     stdio: ['ignore', 'pipe', 'pipe']
   });
@@ -111,8 +106,69 @@ function startZola(projectPath, event) {
 
   zolaProcess.stderr.on('data', (data) => {
     const stderr = data.toString();
-    console.error(`Zola Error: ${stderr}`);
-    handleZolaError(stderr, event);
+    console.log(`Zola stderr: ${stderr}`);
+
+    // エラーハンドリング: event有無に関わらず同じパース処理を行う
+    const sender = event ? event.sender : (mainWindow ? mainWindow.webContents : null);
+    if (!sender) return;
+
+    // ビルド状態メッセージを判定（エラーではない通常のメッセージ）
+    if (stderr.includes('Building site') || stderr.includes('Checking all')) {
+      sender.send('zola-error', { type: 'building', message: 'ビルド中...', raw: stderr });
+      return;
+    }
+    if (stderr.includes('Done in') || stderr.includes('Site built')) {
+      sender.send('zola-error', { type: 'built', message: 'ビルド完了', raw: stderr });
+      return;
+    }
+
+    // エラーパターンをチェック
+    const ERROR_PATTERNS = {
+      pathCollision: {
+        regex: /Found path collisions[\s\S]*?`([^`]+)`/,
+        getMessage: (matches) => `URLパスの衝突: ${matches[1]} が複数のファイルから生成されています。ファイル名を変更してください。`
+      },
+      brokenLink: {
+        regex: /Broken link in (.+): tried to link to (.+)/,
+        getMessage: (matches) => `${matches[1]} 内のリンク「${matches[2]}」が見つかりません`
+      },
+      frontmatterError: {
+        regex: /Failed to parse front matter/,
+        getMessage: () => '記事の設定データに誤りがあります。YAMLの形式を確認してください。'
+      }
+    };
+
+    for (const [type, pattern] of Object.entries(ERROR_PATTERNS)) {
+      const match = stderr.match(pattern.regex);
+      if (match) {
+        sender.send('zola-error', {
+          type,
+          message: pattern.getMessage(match),
+          raw: stderr
+        });
+        return;
+      }
+    }
+
+    // マッチしない stderr は無視（通常のログ出力）
+  });
+
+  zolaProcess.on('close', (code) => {
+    console.log(`Zola process exited with code ${code}`);
+    zolaProcess = null;
+
+    if (zolaStoppedIntentionally) {
+      zolaStoppedIntentionally = false;
+      return;
+    }
+
+    // 異常終了をレンダラーに通知
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('zola-error', {
+        type: 'process-exit',
+        message: `プレビューサーバーが停止しました（終了コード: ${code}）`
+      });
+    }
   });
 
   return true;
@@ -147,6 +203,9 @@ ipcMain.handle('load-config', async (event, projectPath) => {
 
     // 履歴に追加
     addToHistory(projectPath, config.site?.name);
+
+    // プレビューサーバーを自動起動
+    startZola(projectPath);
 
     return { success: true, config };
   } catch (error) {
@@ -212,14 +271,16 @@ ipcMain.handle('select-image-file', async () => {
 })
 
 ipcMain.handle('upload-image', async (event, { filePath }) => {
+  console.log('[Main] upload-image start:', filePath);
   try {
     if (!currentProjectPath) {
       throw new Error('プロジェクトが開かれていません');
     }
     const result = await imageManager.uploadImage(filePath, currentProjectPath);
+    console.log('[Main] upload-image result:', result);
     return result;
   } catch (error) {
-    console.error('Failed to upload image:', error);
+    console.error('[Main] Failed to upload image:', error);
     return { success: false, error: error.message };
   }
 });
@@ -250,6 +311,36 @@ ipcMain.handle('list-images', async () => {
   }
 });
 
+ipcMain.handle('resize-image', async (event, { imagePath, width, height }) => {
+  console.log('[Main] resize-image start:', { imagePath, width, height });
+  try {
+    if (!currentProjectPath) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await imageManager.resizeImage(imagePath, width, height, currentProjectPath);
+    console.log('[Main] resize-image result:', result);
+    return result;
+  } catch (error) {
+    console.error('[Main] Failed to resize image:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('generate-dummy-image', async (event, options) => {
+  console.log('[Main] generate-dummy-image start:', options);
+  try {
+    if (!currentProjectPath) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await imageManager.generateDummyImage({ ...options, projectPath: currentProjectPath });
+    console.log('[Main] generate-dummy-image result:', result);
+    return result;
+  } catch (error) {
+    console.error('[Main] Failed to generate dummy image:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('start-preview', async (event) => {
   try {
     if (!currentProjectPath) {
@@ -257,7 +348,8 @@ ipcMain.handle('start-preview', async (event) => {
     }
     const success = startZola(currentProjectPath, event);
     if (success) {
-      return { success: true, url: 'http://localhost:1111' };
+      const url = currentConfig?.site?.preview_url || 'http://localhost:1111';
+      return { success: true, url };
     } else {
       return { success: false, error: 'Zolaの起動に失敗しました' };
     }
@@ -270,8 +362,9 @@ ipcMain.handle('start-preview', async (event) => {
 ipcMain.handle('stop-preview', async () => {
   try {
     if (zolaProcess) {
-      zolaProcess.kill()
-      zolaProcess = null
+      zolaStoppedIntentionally = true;
+      zolaProcess.kill();
+      zolaProcess = null;
       return { success: true }
     }
     return { success: false, error: 'プレビューサーバーは起動していません' }
@@ -333,6 +426,25 @@ ipcMain.handle('remove-project-history', async (event, projectPath) => {
   }
 });
 
+ipcMain.handle('get-server-info', async () => {
+  // startZola と同じロジックでポートを決定
+  let zolaPort = '1111';
+  if (currentConfig?.site?.preview_url) {
+    try {
+      const url = new URL(currentConfig.site.preview_url);
+      if (url.port) {
+        zolaPort = url.port;
+      }
+    } catch (e) {
+      // preview_url のパースに失敗した場合はデフォルト使用
+    }
+  }
+  return {
+    viteUrl: process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+    zolaUrl: `http://localhost:${zolaPort}`
+  };
+});
+
 ipcMain.handle('exists-content', async (event, { type, slug }) => {
   try {
     if (!currentProjectPath || !currentConfig) {
@@ -346,11 +458,56 @@ ipcMain.handle('exists-content', async (event, { type, slug }) => {
   }
 });
 
+ipcMain.handle('check-slug-collision', async (event, { type, slug, excludeSlug }) => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await contentManager.checkSlugCollision(
+      currentProjectPath, type, slug, currentConfig, excludeSlug || null
+    );
+    return { success: true, ...result };
+  } catch (error) {
+    console.error('Failed to check slug collision:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('resolve-slug-collision', async (event, { type, duplicateSlug }) => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await contentManager.resolveSlugCollision(
+      currentProjectPath, type, duplicateSlug, currentConfig
+    );
+    return result;
+  } catch (error) {
+    console.error('Failed to resolve slug collision:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('detect-all-slug-collisions', async () => {
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const collisions = await contentManager.detectAllSlugCollisions(
+      currentProjectPath, currentConfig
+    );
+    return { success: true, collisions };
+  } catch (error) {
+    console.error('Failed to detect slug collisions:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 
 
 
 function createWindow() {
-  const win = new BrowserWindow({
+  mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
     webPreferences: {
@@ -363,10 +520,10 @@ function createWindow() {
   const isDev = process.env.NODE_ENV === 'development';
 
   if (isDev) {
-    win.loadURL('http://localhost:5173');
-    win.webContents.openDevTools();
+    mainWindow.loadURL('http://localhost:5173');
+    mainWindow.webContents.openDevTools();
   } else {
-    win.loadFile(path.join(__dirname, '../dist/index.html'));
+    mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
   }
 }
 
