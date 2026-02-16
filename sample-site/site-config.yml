@@ -1,6 +1,6 @@
 site:
   name: "株式会社テクノロジーイノベーション"
-  preview_url: "http://localhost:1111"
+  preview_url: ""
 
 media:
   public_path: "/uploads"

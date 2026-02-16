@@ -3,20 +3,38 @@
 {% block title %}{{ page.title }} | {{ config.title }}{% endblock title %}
 
 {% block content %}
-<div class="static-page" style="max-width: 900px; margin: 0 auto; padding: 4rem 1rem;">
-    <article>
-        <header style="text-align: center; margin-bottom: 4rem;">
-            <h1
-                style="font-size: 3rem; margin-bottom: 1rem; border-bottom: 2px solid #00BCD4; display: inline-block; padding-bottom: 0.5rem;">
-                {{ page.title }}</h1>
-            {% if page.description %}
-            <p style="color: #666; font-size: 1.1rem; max-width: 600px; margin: 1rem auto;">{{ page.description }}</p>
-            {% endif %}
-        </header>
+<!--
+  ================================================================
+  GENERIC PAGE
+  ================================================================
+  会社概要、プライバシーポリシー、採用情報などの静的ページ
+  ヒーローセクションと本文を表示する共通テンプレート
+-->
 
-        <div class="content" style="line-height: 2; font-size: 1.15rem;">
-            {{ page.content | safe }}
-        </div>
-    </article>
-</div>
+{% if page.extra.hero_image %}
+<section class="hero" aria-labelledby="page-title">
+  <img src="{{ page.extra.hero_image }}" alt="{{ page.title }}" class="hero__image">
+  <div class="hero__content">
+    <h1 id="page-title">{{ page.title }}</h1>
+    {% if page.description %}
+    <p>{{ page.description }}</p>
+    {% endif %}
+  </div>
+</section>
+{% else %}
+<section class="section" aria-labelledby="page-title">
+  <div class="section__inner">
+    <header class="section__header">
+      <h1 id="page-title">{{ page.title }}</h1>
+      {% if page.description %}
+      <p class="section__subtitle">{{ page.description }}</p>
+      {% endif %}
+    </header>
+
+    <div class="article__content">
+      {{ page.content | safe }}
+    </div>
+  </div>
+</section>
+{% endif %}
 {% endblock content %}

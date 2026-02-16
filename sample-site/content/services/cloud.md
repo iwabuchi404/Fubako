@@ -5,7 +5,7 @@ weight: 1
 
 extra:
   icon: "☁️"
-  hero_image: "/images/service-cloud.jpg"
+  hero_image: "/uploads/2026/02/dummy_0e58a636-e138-417e-92a9-06b2a3512708.png"
   features:
     - "99.99%の稼働率保証"
     - "自動スケーリング"

@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="{{ lang }}">
-
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}{{ config.title }}{% endblock title %}</title>
+
   {% if page.description %}
   <meta name="description" content="{{ page.description }}">
   {% elif section.description %}
@@ -12,32 +12,55 @@
   {% else %}
   <meta name="description" content="{{ config.description }}">
   {% endif %}
+
+  <meta name="theme-color" content="#1E40AF">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&family=Zen+Maru+Gothic:wght@400;500;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ get_url(path='main.css') }}">
+  <script src="{{ get_url(path='js/main.js') }}" defer></script>
 </head>
 
 <body>
-  <header>
-    <div class="header-container">
-      <div>
-        <h1><a href="{{ get_url(path='/') }}">{{ config.extra.company_name }}</a></h1>
-        <div class="tagline">{{ config.extra.tagline }}</div>
-      </div>
-      <nav>
-        <a href="{{ get_url(path='/') }}">ホーム</a>
-        <a href="{{ get_url(path='/pages/about') }}">会社概要</a>
-        <a href="{{ get_url(path='/services') }}">サービス</a>
-        <a href="{{ get_url(path='/cases') }}">導入事例</a>
-        <a href="{{ get_url(path='/news') }}">ニュース</a>
+  <header class="site-header" role="banner">
+    <div class="header-inner">
+      <a href="{{ get_url(path='/') }}" class="site-logo">
+        <h1 class="site-logo__title">{{ config.extra.company_name }}</h1>
+        <div class="site-logo__tagline">{{ config.extra.tagline }}</div>
+      </a>
+
+      <nav class="site-nav" role="navigation" aria-label="メインナビゲーション">
+        <a href="{{ get_url(path='/') }}" class="site-nav__link">ホーム</a>
+        <a href="{{ get_url(path='/services') }}" class="site-nav__link">サービス</a>
+        <a href="{{ get_url(path='/cases') }}" class="site-nav__link">導入事例</a>
+        <a href="{{ get_url(path='/news') }}" class="site-nav__link">ニュース</a>
+        <a href="{{ get_url(path='/pages/about') }}" class="site-nav__link">会社概要</a>
+        <a href="{{ get_url(path='/pages/recruit') }}" class="site-nav__link">採用情報</a>
+      </nav>
+
+      <button class="mobile-menu-btn" aria-label="メニューを開く" aria-expanded="false" aria-controls="mobile-menu">
+        <span class="mobile-menu-btn__icon">☰</span>
+      </button>
+    </div>
+
+    <div class="mobile-menu" id="mobile-menu" hidden>
+      <nav class="mobile-menu__nav" aria-label="モバイルナビゲーション">
+        <a href="{{ get_url(path='/') }}" class="mobile-menu__link">ホーム</a>
+        <a href="{{ get_url(path='/services') }}" class="mobile-menu__link">サービス</a>
+        <a href="{{ get_url(path='/cases') }}" class="mobile-menu__link">導入事例</a>
+        <a href="{{ get_url(path='/news') }}" class="mobile-menu__link">ニュース</a>
+        <a href="{{ get_url(path='/pages/about') }}" class="mobile-menu__link">会社概要</a>
+        <a href="{{ get_url(path='/pages/recruit') }}" class="mobile-menu__link">採用情報</a>
       </nav>
     </div>
   </header>
 
-  <main>
+  <main class="main" role="main">
     {% block content %}{% endblock content %}
   </main>
 
-  <footer>
-    <div class="footer-container">
+  <footer class="site-footer" role="contentinfo">
+    <div class="footer-inner">
       <div class="footer-section">
         <h3>会社情報</h3>
         <ul>
@@ -63,6 +86,7 @@
           <li><a href="{{ get_url(path='/services') }}">サービス</a></li>
           <li><a href="{{ get_url(path='/cases') }}">導入事例</a></li>
           <li><a href="{{ get_url(path='/news') }}">ニュース</a></li>
+          <li><a href="{{ get_url(path='/pages/privacy') }}">プライバシーポリシー</a></li>
         </ul>
       </div>
     </div>
@@ -72,5 +96,4 @@
     </div>
   </footer>
 </body>
-
 </html>

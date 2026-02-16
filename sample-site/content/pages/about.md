@@ -1,10 +1,10 @@
-+++
-title = "会社概要"
-description = "テクノロジーで未来を革新する。私たちのミッションと企業情報について。"
-template = "pages/page.html"
-slug = "about"
-draft = false
-+++
+---
+title: "会社概要"
+description: "テクノロジーで未来を革新する。私たちのミッションと企業情報について。"
+template: "pages/page.html"
+slug: "about"
+draft: false
+---
 
 ## 私たちのビジョン
 
