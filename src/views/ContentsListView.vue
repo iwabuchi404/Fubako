@@ -14,8 +14,8 @@
     <div v-if="loading" class="loading">
       <span>データの整合性を確認中...</span>
     </div>
-    
-    <div v-else-if="contents.length === 0" class="empty-state glass">
+
+    <div v-else-if="sortedContents.length === 0" class="empty-state glass">
       <p>このディレクトリにはまだコンテンツが存在しません。</p>
       <router-link :to="`/edit/${type}`" class="btn-primary">
         最初のエントリを作成
@@ -27,24 +27,32 @@
         <thead>
           <tr>
             <th class="col-status">STATUS</th>
-            <th v-for="col in displayColumns" :key="col.key">
+            <th
+              v-for="col in displayColumns"
+              :key="col.key"
+              class="sortable-header"
+              @click="toggleSort(col.key)"
+            >
               {{ col.label.toUpperCase() }}
+              <span v-if="sortKey === col.key" class="sort-indicator">
+                {{ sortOrder === 'asc' ? '▲' : '▼' }}
+              </span>
             </th>
             <th class="col-actions">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="item in contents" :key="item.slug">
+          <tr v-for="item in paginatedContents" :key="item.slug">
             <td>
-              <span 
-                class="status-badge" 
+              <span
+                class="status-badge"
                 :class="getPublishStatus(item).class"
               >
                 {{ getPublishStatus(item).label }}
               </span>
             </td>
             <td v-for="col in displayColumns" :key="col.key" class="data-cell">
-              {{ item[col.key] || '-' }}
+              {{ getNestedValue(item, col.key) || '-' }}
             </td>
             <td class="actions-cell">
               <router-link
@@ -66,6 +74,27 @@
         </tbody>
       </table>
     </div>
+
+    <!-- ページネーション -->
+    <div v-if="totalPages > 1" class="pagination">
+      <button
+        class="btn-page"
+        :disabled="currentPage === 1"
+        @click="goToPage(currentPage - 1)"
+      >
+        前へ
+      </button>
+      <span class="page-info">
+        {{ currentPage }} / {{ totalPages }}（全{{ sortedContents.length }}件）
+      </span>
+      <button
+        class="btn-page"
+        :disabled="currentPage === totalPages"
+        @click="goToPage(currentPage + 1)"
+      >
+        次へ
+      </button>
+    </div>
   </div>
 </template>
 
@@ -80,6 +109,22 @@ const projectStore = useProjectStore()
 const type = computed(() => route.params.type)
 const contents = computed(() => projectStore.contents[type.value] || [])
 const loading = computed(() => projectStore.isLoading(`contents/${type.value}`))
+
+// ソート状態
+const sortKey = ref(null)
+const sortOrder = ref(null) // 'asc' | 'desc' | null
+
+// ページネーション状態
+const PAGE_SIZE = 50
+const currentPage = ref(1)
+
+// コンテンツタイプ切替時にソート・ページをリセット
+watch(type, () => {
+  sortKey.value = null
+  sortOrder.value = null
+  currentPage.value = 1
+  loadContents()
+})
 
 // ページ遷移時に強制リフレッシュ（キャッシュクリア）
 watch(() => route.path, (newPath, oldPath) => {
@@ -105,6 +150,67 @@ const displayColumns = computed(() => {
   ]
 })
 
+// ドットキー対応のネスト値取得（extra.category など）
+function getNestedValue(obj, keyPath) {
+  return keyPath.split('.').reduce((o, k) => o?.[k], obj)
+}
+
+// ソート済みコンテンツ
+const sortedContents = computed(() => {
+  const list = [...contents.value]
+  if (!sortKey.value || !sortOrder.value) return list
+
+  const key = sortKey.value
+  const order = sortOrder.value
+
+  return list.sort((a, b) => {
+    const valA = getNestedValue(a, key) ?? ''
+    const valB = getNestedValue(b, key) ?? ''
+
+    // 日付カラムの場合
+    if (key === 'date') {
+      const diff = new Date(valA) - new Date(valB)
+      return order === 'asc' ? diff : -diff
+    }
+
+    // 文字列比較
+    const cmp = String(valA).localeCompare(String(valB))
+    return order === 'asc' ? cmp : -cmp
+  })
+})
+
+// ページネーション
+const totalPages = computed(() => {
+  return Math.ceil(sortedContents.value.length / PAGE_SIZE) || 1
+})
+
+const paginatedContents = computed(() => {
+  const start = (currentPage.value - 1) * PAGE_SIZE
+  return sortedContents.value.slice(start, start + PAGE_SIZE)
+})
+
+function goToPage(page) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+// ソート切替: asc → desc → リセット
+function toggleSort(colKey) {
+  if (sortKey.value === colKey) {
+    if (sortOrder.value === 'asc') {
+      sortOrder.value = 'desc'
+    } else {
+      sortKey.value = null
+      sortOrder.value = null
+    }
+  } else {
+    sortKey.value = colKey
+    sortOrder.value = 'asc'
+  }
+  currentPage.value = 1
+}
+
 function getPublishStatus(item) {
   if (item.draft) {
     return {
@@ -112,17 +218,17 @@ function getPublishStatus(item) {
       class: 'status-draft'
     }
   }
-  
+
   const publishDate = new Date(item.date)
   const now = new Date()
-  
+
   if (publishDate > now) {
     return {
       label: 'SCHEDULED',
       class: 'status-scheduled'
     }
   }
-  
+
   return {
     label: 'PUBLISHED',
     class: 'status-published'
@@ -144,10 +250,8 @@ async function handleDelete(slug, title) {
 
   try {
     await projectStore.deleteContent(type.value, slug)
-    // オプティミスティック削除により、自動的に一覧から削除される
   } catch (error) {
     console.error('Delete error:', error)
-    // エラーメッセージはストアから自動通知
   }
 }
 
@@ -204,6 +308,22 @@ onMounted(() => {
 .col-status { width: 150px; }
 .col-actions { width: 200px; text-align: right !important; }
 
+.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s;
+}
+
+.sortable-header:hover {
+  color: var(--color-primary);
+}
+
+.sort-indicator {
+  font-size: 0.6rem;
+  margin-left: 0.25rem;
+  opacity: 0.8;
+}
+
 .data-cell {
   font-weight: 500;
   color: var(--color-text-main);
@@ -242,6 +362,44 @@ onMounted(() => {
 .status-draft {
   color: var(--color-text-dim);
   border-color: rgba(148, 163, 184, 0.2);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.25rem;
+  padding: 1.5rem 0;
+}
+
+.page-info {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--color-text-dim);
+  letter-spacing: 0.05em;
+}
+
+.btn-page {
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-main);
+  transition: all 0.15s;
+}
+
+.btn-page:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.btn-page:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .loading {

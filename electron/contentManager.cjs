@@ -3,6 +3,9 @@ const fsSyncModule = require('fs');
 const path = require('path');
 const yaml = require('js-yaml');
 
+// メモリインデックスキャッシュ（コンテンツタイプごとにメタデータ配列を保持）
+const indexCache = {};
+
 /**
  * Markdownファイルをパースして、FrontmatterとBodyに分離
  */
@@ -123,12 +126,17 @@ function buildMarkdown(frontmatter, content) {
 }
 
 /**
- * コンテンツ一覧を取得
+ * コンテンツ一覧を取得（並列パース + インデックスキャッシュ）
  */
 async function listContents(projectPath, contentType, config) {
     const typeConfig = config.content_types[contentType];
     if (!typeConfig) {
         throw new Error(`Unknown content type: ${contentType}`);
+    }
+
+    // キャッシュがあればそのまま返す
+    if (indexCache[contentType]) {
+        return indexCache[contentType];
     }
 
     const folderPath = path.join(projectPath, typeConfig.folder);
@@ -139,28 +147,31 @@ async function listContents(projectPath, contentType, config) {
     }
 
     const files = await fs.readdir(folderPath);
-    const contents = [];
+    const mdFiles = files.filter(f => f.endsWith('.md') && f !== '_index.md');
 
-    for (const file of files) {
-        // _index.md は除外
-        if (file.endsWith('.md') && file !== '_index.md') {
+    // 並列パース
+    const results = await Promise.all(
+        mdFiles.map(async (file) => {
             try {
                 const filePath = path.join(folderPath, file);
                 const { frontmatterYaml } = await parseMarkdown(filePath);
                 const frontmatter = parseFrontmatter(frontmatterYaml);
 
-                contents.push({
+                return {
                     slug: file.replace('.md', ''),
                     title: frontmatter.title || 'Untitled',
                     date: frontmatter.date || '',
                     draft: frontmatter.draft || false,
                     ...frontmatter
-                });
+                };
             } catch (error) {
                 console.error(`Failed to parse ${file}:`, error);
+                return null;
             }
-        }
-    }
+        })
+    );
+
+    const contents = results.filter(Boolean);
 
     // ソート
     const sortOrder = typeConfig.sort || 'date_desc';
@@ -174,7 +185,24 @@ async function listContents(projectPath, contentType, config) {
         contents.sort((a, b) => b.title.localeCompare(a.title));
     }
 
+    // キャッシュに保存
+    indexCache[contentType] = contents;
+
     return contents;
+}
+
+/**
+ * 指定コンテンツタイプのインデックスキャッシュを無効化
+ * contentTypeを省略すると全キャッシュをクリア
+ */
+function invalidateIndexCache(contentType) {
+    if (contentType) {
+        delete indexCache[contentType];
+    } else {
+        for (const key of Object.keys(indexCache)) {
+            delete indexCache[key];
+        }
+    }
 }
 
 /**
@@ -231,6 +259,9 @@ async function saveContent(projectPath, contentType, slug, data, config) {
     // ファイル書き込み
     await fs.writeFile(filePath, markdown, 'utf-8');
 
+    // キャッシュを無効化
+    invalidateIndexCache(contentType);
+
     return { success: true, path: filePath };
 }
 
@@ -250,6 +281,9 @@ async function deleteContent(projectPath, contentType, slug, config) {
     }
 
     await fs.unlink(filePath);
+
+    // キャッシュを無効化
+    invalidateIndexCache(contentType);
 
     return { success: true };
 }
@@ -426,6 +460,7 @@ module.exports = {
     saveContent,
     deleteContent,
     existsContent,
+    invalidateIndexCache,
     checkSlugCollision,
     resolveSlugCollision,
     detectAllSlugCollisions

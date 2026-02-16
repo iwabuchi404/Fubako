@@ -236,6 +236,9 @@ ipcMain.handle('load-config', async (event, projectPath) => {
     // 履歴に追加
     addToHistory(projectPath, config.site?.name);
 
+    // プロジェクト切替時にインデックスキャッシュをクリア
+    contentManager.invalidateIndexCache();
+
     // プレビューサーバーを自動起動
     await startZola(projectPath);
 
