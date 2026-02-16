@@ -12,6 +12,7 @@ let currentConfig = null;
 let zolaProcess = null;
 let mainWindow = null;
 let zolaStoppedIntentionally = false;
+let lastZolaStderr = '';
 
 // プロジェクト履歴管理
 const MAX_HISTORY = 10;
@@ -106,6 +107,7 @@ function startZola(projectPath, event = null) {
 
   zolaProcess.stderr.on('data', (data) => {
     const stderr = data.toString();
+    lastZolaStderr = stderr;
     console.log(`Zola stderr: ${stderr}`);
 
     // エラーハンドリング: event有無に関わらず同じパース処理を行う
@@ -162,11 +164,12 @@ function startZola(projectPath, event = null) {
       return;
     }
 
-    // 異常終了をレンダラーに通知
+    // 異常終了をレンダラーに通知（lastZolaStderrを含める）
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('zola-error', {
         type: 'process-exit',
-        message: `プレビューサーバーが停止しました（終了コード: ${code}）`
+        message: `プレビューサーバーが停止しました（終了コード: ${code}）`,
+        raw: lastZolaStderr || `Zola process exited with code ${code}`
       });
     }
   });

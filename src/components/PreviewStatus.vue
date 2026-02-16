@@ -48,19 +48,19 @@
       </button>
     </div>
     
-    <div 
-      v-if="projectStore.previewBuildError" 
+    <div
+      v-if="projectStore.previewBuildError"
       class="error-details"
       @click="showErrorDetails = !showErrorDetails"
     >
       <span class="error-toggle">{{ showErrorDetails ? '▲' : '▼' }}</span>
-      <div v-if="showErrorDetails" class="error-content">
-        <h4>ビルドエラー詳細</h4>
-        <p>{{ projectStore.previewBuildError }}</p>
+      <div v-show="showErrorDetails" class="error-content">
+        <h4>エラー詳細</h4>
+        <p class="error-message">{{ projectStore.previewBuildError }}</p>
         <div v-if="projectStore.previewUrl" class="error-actions">
-          <a 
-            :href="projectStore.previewUrl" 
-            target="_blank" 
+          <a
+            :href="projectStore.previewUrl"
+            target="_blank"
             class="btn-link"
           >
             ブラウザで確認
@@ -79,7 +79,7 @@ const projectStore = useProjectStore()
 const isRebuilding = ref(false)
 const isRestarting = ref(false)
 const isStarting = ref(false)
-const showErrorDetails = ref(false)
+const showErrorDetails = ref(true)
 
 const statusClass = computed(() => {
   const status = projectStore.previewBuildStatus
@@ -285,27 +285,33 @@ async function handleStop() {
   position: absolute;
   bottom: calc(100% + 0.5rem);
   right: 0;
-  background: rgba(255, 107, 107, 0.1);
+  background: rgba(21, 21, 25, 0.98);
   border: 1px solid rgba(255, 107, 107, 0.3);
   border-radius: 8px;
   padding: 1rem;
-  min-width: 300px;
+  min-width: 400px;
+  max-width: calc(100vw - 3rem);
+  max-height: 300px;
+  overflow-y: auto;
   backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  z-index: 1001;
 }
 
 .error-content h4 {
   margin: 0 0 0.5rem 0;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #ff6b6b;
   font-weight: 600;
 }
 
-.error-content p {
+.error-message {
   margin: 0 0 1rem 0;
-  font-size: 0.75rem;
-  line-height: 1.5;
+  font-size: 0.8rem;
+  line-height: 1.6;
   color: rgba(255, 255, 255, 0.9);
   word-break: break-word;
+  white-space: pre-wrap;
 }
 
 .error-actions {

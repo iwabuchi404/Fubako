@@ -177,13 +177,23 @@ export const useProjectStore = defineStore('project', () => {
 
         zolaErrorCleanup = window.electronAPI.onZolaError((error) => {
             console.error('[ProjectStore] Zola error:', error)
-            
-            if (error.type === 'process-exit') {
+
+            // Zolaのエラーメッセージをそのまま使用
+            let errorMessage = error.raw || error.message || 'エラーが発生しました'
+
+            if (error.type === 'pathCollision') {
+                previewBuildStatus.value = 'error'
+                previewBuildMessage.value = 'URLパス衝突'
+                previewBuildError.value = errorMessage
+                isBuildError.value = true
+                notify('URLパスの衝突が発生しました', 'error', 8000)
+            } else if (error.type === 'process-exit') {
                 previewRunning.value = false
                 previewUrl.value = null
                 previewBuildStatus.value = 'error'
                 previewBuildMessage.value = 'プロセス異常終了'
-                previewBuildError.value = error.message
+                previewBuildError.value = errorMessage
+                notify('プレビューサーバーが停止しました', 'error')
             } else if (error.type === 'building') {
                 previewBuildStatus.value = 'building'
                 previewBuildMessage.value = 'ビルド中...'
@@ -195,11 +205,10 @@ export const useProjectStore = defineStore('project', () => {
                 // ビルドエラー
                 previewBuildStatus.value = 'error'
                 previewBuildMessage.value = 'ビルドエラー'
-                previewBuildError.value = error.message
+                previewBuildError.value = errorMessage
                 isBuildError.value = true
+                notify(errorMessage, 'error', 8000)
             }
-            
-            notify(error.message, 'error', 5000)
         })
     }
 

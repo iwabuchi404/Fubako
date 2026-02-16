@@ -143,7 +143,7 @@ onUnmounted(() => {
 .notification {
   padding: 1.2rem 2rem;
   border-radius: var(--radius-md);
-  background: var(--color-surface-mid);
+  background: var(--color-charcoal-muted);
   color: var(--color-text-main);
   min-width: 320px;
   box-shadow: var(--shadow-depth);
