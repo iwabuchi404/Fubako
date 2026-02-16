@@ -55,12 +55,41 @@ function addToHistory(projectPath, siteName) {
   saveHistory(filtered.slice(0, MAX_HISTORY));
 }
 
-function startZola(projectPath, event = null) {
-  if (zolaProcess) {
+/**
+ * Zolaプロセスを安全に終了させる
+ * タイムアウト付きでプロセスの終了を待機し、応答がなければ強制終了する
+ */
+function terminateZola(timeout = 5000) {
+  return new Promise((resolve) => {
+    if (!zolaProcess) {
+      resolve();
+      return;
+    }
+
+    const proc = zolaProcess;
     zolaStoppedIntentionally = true;
-    zolaProcess.kill();
-    zolaProcess = null;
-  }
+
+    const timer = setTimeout(() => {
+      // タイムアウト: 強制終了
+      console.warn('Zola process did not exit in time, force killing');
+      try { proc.kill('SIGKILL'); } catch (e) { /* already dead */ }
+      zolaProcess = null;
+      resolve();
+    }, timeout);
+
+    proc.once('close', () => {
+      clearTimeout(timer);
+      zolaProcess = null;
+      resolve();
+    });
+
+    try { proc.kill(); } catch (e) { /* already dead */ }
+  });
+}
+
+async function startZola(projectPath, event = null) {
+  // 旧プロセスの終了を待ってから起動
+  await terminateZola();
   zolaStoppedIntentionally = false;
 
   // ポートを site-config.yml から取得
@@ -208,7 +237,7 @@ ipcMain.handle('load-config', async (event, projectPath) => {
     addToHistory(projectPath, config.site?.name);
 
     // プレビューサーバーを自動起動
-    startZola(projectPath);
+    await startZola(projectPath);
 
     return { success: true, config };
   } catch (error) {
@@ -349,7 +378,7 @@ ipcMain.handle('start-preview', async (event) => {
     if (!currentProjectPath) {
       throw new Error('プロジェクトが開かれていません');
     }
-    const success = startZola(currentProjectPath, event);
+    const success = await startZola(currentProjectPath, event);
     if (success) {
       const url = currentConfig?.site?.preview_url || 'http://localhost:1111';
       return { success: true, url };
@@ -365,15 +394,13 @@ ipcMain.handle('start-preview', async (event) => {
 ipcMain.handle('stop-preview', async () => {
   try {
     if (zolaProcess) {
-      zolaStoppedIntentionally = true;
-      zolaProcess.kill();
-      zolaProcess = null;
-      return { success: true }
+      await terminateZola();
+      return { success: true };
     }
-    return { success: false, error: 'プレビューサーバーは起動していません' }
+    return { success: false, error: 'プレビューサーバーは起動していません' };
   } catch (error) {
-    console.error('Failed to stop preview:', error)
-    return { success: false, error: error.message }
+    console.error('Failed to stop preview:', error);
+    return { success: false, error: error.message };
   }
 });
 
@@ -555,10 +582,8 @@ app.whenReady().then(async () => {
   });
 });
 
-app.on('window-all-closed', () => {
-  if (zolaProcess) {
-    zolaProcess.kill();
-  }
+app.on('window-all-closed', async () => {
+  await terminateZola();
   if (process.platform !== 'darwin') {
     app.quit();
   }
