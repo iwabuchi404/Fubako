@@ -145,12 +145,11 @@ document.querySelectorAll('a[href^="#"]').forEach(anchor => {
       });
 
       // モバイルメニューが開いている場合は閉じる
-      if (!mobileMenu.hasAttribute('hidden')) {
-        mobileMenu.setAttribute('hidden', '');
+      if (mobileMenu.classList.contains('is-open')) {
+        mobileMenu.classList.remove('is-open');
         mobileMenuBtn.setAttribute('aria-expanded', 'false');
         mobileMenuBtn.querySelector('.mobile-menu-btn__icon').textContent = '☰';
-      }
-    }
+      }    }
   });
 });
 
