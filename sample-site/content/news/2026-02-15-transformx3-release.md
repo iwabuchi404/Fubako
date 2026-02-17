@@ -1,12 +1,10 @@
 ---
-title: "TransformX 3.0をリリース — 新機能としてAI予測分析、テンプレートライブラリを追加"
-date: 2026-02-15
-description: "TransformX 3.0がリリースされ、AI予測分析やテンプレートライブラリなどの新機能が追加されました"
-
+title: TransformX 3.0をリリース — 新機能としてAI予測分析、テンプレートライブラリを追加
+description: TransformX 3.0がリリースされ、AI予測分析やテンプレートライブラリなどの新機能が追加されました
 extra:
-  thumbnail: "/uploads/2026/02/dummy_c54ffe79-f63a-487c-a352-2a9a30596a36.png"
-  category: "プレスリリース"
-  author: "広報部"
+  thumbnail: /uploads/2026/02/dummy_c54ffe79-f63a-487c-a352-2a9a30596a36.png
+  category: プレスリリース
+  author: 広報部
 ---
 
 # TransformX 3.0をリリース — 新機能としてAI予測分析、テンプレートライブラリを追加
