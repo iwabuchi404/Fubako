@@ -1,0 +1,6 @@
+{
+  "enabled": true,
+  "developBranch": "develop",
+  "productionBranch": "production",
+  "remoteUrl": "https://github.com/iwabuchi404/fubako_testsite.git"
+}
