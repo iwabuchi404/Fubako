@@ -30,4 +30,18 @@ contextBridge.exposeInMainWorld('electronAPI', {
     checkSlugCollision: (params) => ipcRenderer.invoke('check-slug-collision', params),
     resolveSlugCollision: (params) => ipcRenderer.invoke('resolve-slug-collision', params),
     detectAllSlugCollisions: () => ipcRenderer.invoke('detect-all-slug-collisions'),
+
+    // Git関連
+    gitInit: (projectPath, developBranch) => ipcRenderer.invoke('git-init', { projectPath, developBranch }),
+    loadGitConfig: (projectPath) => ipcRenderer.invoke('git-load-config', projectPath),
+    saveGitConfig: (projectPath, config) => ipcRenderer.invoke('git-save-config', { projectPath, config }),
+    getGitStatus: (projectPath) => ipcRenderer.invoke('git-get-status', projectPath),
+    gitCommit: (projectPath, message) => ipcRenderer.invoke('git-commit', { projectPath, message }),
+    gitPush: (projectPath, branch) => ipcRenderer.invoke('git-push', { projectPath, branch }),
+    gitFetch: (projectPath) => ipcRenderer.invoke('git-fetch', projectPath),
+    gitMergeToProduction: (projectPath, developBranch, productionBranch) => ipcRenderer.invoke('git-merge-to-production', { projectPath, developBranch, productionBranch }),
+    gitExportDist: (projectPath) => ipcRenderer.invoke('git-export-dist', projectPath),
+    gitResolveConflictLocal: (projectPath, filePath) => ipcRenderer.invoke('git-resolve-conflict-local', { projectPath, filePath }),
+    gitResolveConflictRemote: (projectPath, filePath) => ipcRenderer.invoke('git-resolve-conflict-remote', { projectPath, filePath }),
+    gitCheckout: (projectPath, branch) => ipcRenderer.invoke('git-checkout', { projectPath, branch }),
 });

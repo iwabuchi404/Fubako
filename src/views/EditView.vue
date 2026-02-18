@@ -39,53 +39,6 @@
       <div class="loader-neon"></div>
       <p>FETCHING DATA...</p>
     </div>
-    
-    <div v-if="projectStore.previewBuildStatus === 'building'" class="build-status-bar">
-      <div class="build-indicator">
-        <div class="loader-pulse"></div>
-        <span>{{ projectStore.previewBuildMessage || 'ビルド中...' }}</span>
-      </div>
-    </div>
-
-    <div v-if="projectStore.previewBuildStatus === 'error'" class="error-status-bar">
-      <div class="error-indicator">
-        <i class="icon-error">!</i>
-        <span>ビルドエラーが発生しました</span>
-      </div>
-      <button @click="showBuildError = !showBuildError" class="btn-toggle-error">
-        {{ showBuildError ? '詳細を隠す' : '詳細を表示' }}
-      </button>
-      <div v-if="showBuildError" class="build-error-details">
-        <h4>エラー詳細</h4>
-        <p>{{ projectStore.previewBuildError || '不明なエラー' }}</p>
-        
-        <!-- 重複スラグエラーの場合、解決ボタンを表示 -->
-        <div v-if="isPathCollisionError" class="collision-actions">
-          <p class="collision-info">
-            <i class="icon-warning">⚠</i>
-            URLパスの衝突が検出されました。自動的に解決できますか？
-          </p>
-          <div class="error-actions">
-            <button @click="handleAutoResolveCollision" class="btn-primary btn-sm" :disabled="resolvingCollision">
-              {{ resolvingCollision ? '解決中...' : '自動で解決する' }}
-            </button>
-            <button @click="showBuildError = false" class="btn-secondary btn-sm">
-              閉じる
-            </button>
-          </div>
-        </div>
-        
-        <!-- 一般的なエラー -->
-        <div v-else class="error-actions">
-          <button @click="handleRebuildPreview" class="btn-secondary btn-sm">
-            リビルドを試す
-          </button>
-          <button @click="showBuildError = false" class="btn-primary btn-sm">
-            閉じる
-          </button>
-        </div>
-      </div>
-    </div>
 
     <div 
       class="editor-main-layout" 
@@ -260,14 +213,16 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
+import { ref, reactive, computed, onMounted, toRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useProjectStore } from '../stores/project'
+import { useErrorStore } from '../stores/error'
 import PreviewPanel from '../components/PreviewPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
 const projectStore = useProjectStore()
+const errorStore = useErrorStore()
 
 const type = computed(() => route.params.type)
 const slug = computed(() => route.params.slug)
@@ -278,23 +233,6 @@ const fieldErrors = reactive({})
 const loading = computed(() => projectStore.isLoading(`content/${type.value}/${slug.value}`))
 const saving = ref(false)
 const isDirty = ref(false)
-const showBuildError = ref(false)
-const resolvingCollision = ref(false)
-
-// URLパス衝突エラーの判定
-const isPathCollisionError = computed(() => {
-  const error = projectStore.previewBuildError
-  return error && (error.includes('URLパスの衝突') || error.includes('path collisions'))
-})
-
-// 衝突しているスラグを抽出
-const collisionSlug = computed(() => {
-  const error = projectStore.previewBuildError
-  if (!error) return null
-  
-  const match = error.match(/\/([^\/]+)`/);
-  return match ? match[1] : null
-})
 
 const sidebarCollapsed = ref(false)
 const isResizing = ref(false)
@@ -589,45 +527,6 @@ function addListItem(key) {
 
 function removeListItem(key, index) {
   formData[key].splice(index, 1)
-}
-
-async function handleRebuildPreview() {
-  showBuildError.value = false
-  await projectStore.rebuildPreview()
-}
-
-async function handleAutoResolveCollision() {
-  if (!collisionSlug.value) {
-    projectStore.notify('衝突しているスラグを特定できません', 'error')
-    return
-  }
-  
-  resolvingCollision.value = true
-  try {
-    const result = await projectStore.resolveSlugCollision(type.value, collisionSlug.value)
-    
-    if (result.success) {
-      showBuildError.value = false
-      projectStore.notify(`重複スラグ「${collisionSlug.value}」を解決しました`, 'success')
-      
-      // 現在の編集中のスラグが変更された場合、リロード
-      if (slug.value === collisionSlug.value && result.details && result.details.length > 0) {
-        // スラグが変更されたファイルを探す
-        const changedItem = result.details.find(item => item.oldSlug === collisionSlug.value)
-        if (changedItem) {
-          router.push(`/edit/${type.value}/${changedItem.newSlug}`)
-        }
-      } else {
-        // コンテンツを再読み込み
-        await loadContent()
-      }
-    }
-  } catch (error) {
-    console.error('Collision resolution failed:', error)
-    projectStore.notify('重複解決に失敗しました: ' + error.message, 'error')
-  } finally {
-    resolvingCollision.value = false
-  }
 }
 
 async function handleImageUpload(key) {
@@ -1120,204 +1019,6 @@ onMounted(async () => {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
-}
-
-/* --- Build Status Bar --- */
-.build-status-bar {
-  position: relative;
-  background: rgba(245, 158, 11, 0.1);
-  border-bottom: 2px solid rgba(245, 158, 11, 0.5);
-  padding: 0.75rem 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(10px);
-  margin-bottom: 0;
-}
-
-.build-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #f59e0b;
-  font-weight: 600;
-  font-size: 0.8rem;
-}
-
-.loader-pulse {
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(245, 158, 11, 0.3);
-  border-top-color: #f59e0b;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-/* --- Error Status Bar --- */
-.error-status-bar {
-  position: relative;
-  background: rgba(255, 107, 107, 0.1);
-  border-bottom: 2px solid rgba(255, 107, 107, 0.5);
-  padding: 1rem 1.5rem;
-  backdrop-filter: blur(10px);
-  margin-bottom: 0;
-}
-
-.error-indicator {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  color: #ff6b6b;
-  font-weight: 600;
-  font-size: 0.9rem;
-}
-
-.icon-error {
-  font-style: normal;
-  font-size: 1.2rem;
-  color: #ff6b6b;
-}
-
-.btn-toggle-error {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  color: rgba(255, 255, 255, 0.8);
-  padding: 0.4rem 0.8rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  margin-left: auto;
-}
-
-.btn-toggle-error:hover {
-  background: rgba(255, 107, 107, 0.1);
-  color: #ff6b6b;
-}
-
-.build-error-details {
-  margin-top: 1rem;
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.build-error-details h4 {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.85rem;
-  color: #ff6b6b;
-  font-weight: 700;
-}
-
-.build-error-details p {
-  margin: 0 0 1rem 0;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
-  word-break: break-word;
-}
-
-/* URLパス衝突の解決策スタイル */
-.collision-solution {
-  margin-top: 1rem;
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  border-radius: 8px;
-  padding: 1rem;
-}
-
-.collision-solution h5 {
-  margin: 0 0 0.75rem 0;
-  font-size: 0.9rem;
-  color: #ff6b6b;
-  font-weight: 700;
-}
-
-.collision-solution p {
-  margin: 0 0 0.5rem 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.8);
-}
-
-.solution-options {
-  margin-top: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.solution-options h6 {
-  margin: 0 0 0.25rem 0;
-  font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7);
-  font-weight: 600;
-}
-
-.solution-options p {
-  margin: 0 0 0.25rem 0 5 0;
-  padding-left: 1.25rem;
-  font-size: 0.7rem;
-  line-height: 1.4;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.error-actions {
-  display: flex;
-  gap: 0.5rem;
-  justify-content: flex-end;
-}
-
-.collision-actions {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(240, 173, 78, 0.1);
-  border-radius: 4px;
-  border-left: 3px solid var(--color-warning);
-}
-
-.collision-info {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-bottom: 1rem;
-  font-size: 0.9rem;
-  color: var(--color-warning);
-}
-
-.icon-warning {
-  font-style: normal;
-  font-size: 1.2rem;
-}
-
-.btn-sm {
-  padding: 0.4rem 0.8rem;
-  font-size: 0.75rem;
-}
-
-.error-banner {
-  padding: 1rem 1.5rem;
-  background: rgba(217, 83, 79, 0.1);
-  border-bottom: 1px solid var(--color-error);
-  color: var(--color-error);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-
-.field-error {
-  color: var(--color-error);
-  font-size: 0.75rem;
-  margin-top: 0.4rem;
-  font-weight: 500;
-}
-
-.field-help {
-  font-size: 0.65rem;
-  color: var(--color-text-dark);
-  margin-top: 0.4rem;
-  line-height: 1.4;
 }
 
 /* --- Modals --- */

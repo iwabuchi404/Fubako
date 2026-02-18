@@ -48,26 +48,64 @@
           <h2>Dashboard</h2>
           <p class="project-path-display">{{ projectStore.projectPath }}</p>
         </div>
-        
+
         <div class="dashboard-controls glass">
           <div class="site-badge">
             <span class="label">SITE</span>
             <span class="value">{{ projectStore.config?.site?.name }}</span>
           </div>
           <div class="divider"></div>
+
+          <!-- Gitボタン -->
+          <div v-if="showGitButtons" class="git-actions">
+            <button
+              @click="handleGitSave"
+              class="btn-secondary btn-sm"
+              :disabled="!gitStore.canSave || gitStore.loading.commit"
+            >
+              {{ gitStore.loading.commit ? '保存中...' : 'Git保存' }}
+            </button>
+            <button
+              @click="handleGitFetch"
+              class="btn-secondary btn-sm"
+              :disabled="!gitStore.canFetch || gitStore.loading.fetch"
+            >
+              {{ gitStore.loading.fetch ? '更新中...' : '更新' }}
+            </button>
+            <button
+              @click="handleGitPublish"
+              class="btn-publish btn-sm"
+              :disabled="!gitStore.canPublish || gitStore.loading.merge"
+              title="`${gitStore.settings?.developBranch} → ${gitStore.settings?.productionBranch} へ公開`"
+            >
+              {{ gitStore.loading.merge ? '公開中...' : '本番公開' }}
+            </button>
+          </div>
+
+          <!-- エクスポートボタン（Git未設定時も表示） -->
+          <button
+            @click="handleExport"
+            class="btn-secondary btn-sm"
+            :disabled="gitStore.loading.export"
+          >
+            {{ gitStore.loading.export ? 'エクスポート中...' : 'エクスポート' }}
+          </button>
+
+          <div class="divider"></div>
+
           <div class="preview-actions">
-            <button 
+            <button
               v-if="!projectStore.previewRunning"
-              @click="handleStartPreview" 
-              class="btn-primary btn-sm" 
+              @click="handleStartPreview"
+              class="btn-primary btn-sm"
               :disabled="previewStarting"
             >
               {{ previewStarting ? '起動中...' : 'プレビュー開始' }}
             </button>
-            <a 
-              v-if="projectStore.previewUrl" 
-              :href="projectStore.previewUrl" 
-              target="_blank" 
+            <a
+              v-if="projectStore.previewUrl"
+              :href="projectStore.previewUrl"
+              target="_blank"
               class="btn-secondary btn-sm"
             >
               サイトを見る
@@ -123,15 +161,20 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useProjectStore } from '../stores/project'
+import { useGitStore } from '../stores/git'
 import { useRouter } from 'vue-router'
 
 const projectStore = useProjectStore()
+const gitStore = useGitStore()
 const router = useRouter()
 
 const previewStarting = ref(false)
 const projectHistory = ref([])
+
+// Gitボタンの表示条件
+const showGitButtons = computed(() => gitStore.isGitEnabled)
 
 async function loadHistory() {
   try {
@@ -191,6 +234,76 @@ async function handleStartPreview() {
     console.error('Preview error:', error)
   } finally {
     previewStarting.value = false
+  }
+}
+
+async function handleGitSave() {
+  try {
+    const result = await gitStore.commit(projectStore.projectPath, 'Update content')
+    if (result.success) {
+      const pushResult = await gitStore.push(projectStore.projectPath)
+      if (pushResult.success) {
+        projectStore.notify('Gitに保存・プッシュしました', 'success')
+      } else {
+        projectStore.notify('保存しましたがプッシュに失敗しました: ' + pushResult.error, 'warning')
+      }
+    } else {
+      projectStore.notify('Git保存に失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Git save error:', error)
+    projectStore.notify('Git保存エラー', 'error')
+  }
+}
+
+async function handleGitFetch() {
+  try {
+    const result = await gitStore.fetch(projectStore.projectPath)
+    if (result.success) {
+      if (gitStore.hasRemoteUpdates) {
+        projectStore.notify('リモートに更新があります', 'info')
+      } else {
+        projectStore.notify('更新はありません', 'success')
+      }
+    } else {
+      projectStore.notify('更新に失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Git fetch error:', error)
+    projectStore.notify('更新に失敗しました', 'error')
+  }
+}
+
+async function handleGitPublish() {
+  const developBranch = gitStore.settings?.developBranch || 'develop'
+  const productionBranch = gitStore.settings?.productionBranch || 'main'
+  const confirmed = window.confirm(`「${developBranch}」ブランチを「${productionBranch}」ブランチへ公開します。\nよろしいですか？`)
+  if (!confirmed) return
+
+  try {
+    const result = await gitStore.mergeToProduction(projectStore.projectPath)
+    if (result.success) {
+      projectStore.notify('本番環境へ公開しました', 'success')
+    } else {
+      projectStore.notify('公開に失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Publish error:', error)
+    projectStore.notify('公開に失敗しました', 'error')
+  }
+}
+
+async function handleExport() {
+  try {
+    const result = await gitStore.exportDist(projectStore.projectPath)
+    if (result.success) {
+      projectStore.notify('dist/をエクスポートしました', 'success')
+    } else {
+      projectStore.notify('エクスポートに失敗しました: ' + result.error, 'error')
+    }
+  } catch (error) {
+    console.error('Export error:', error)
+    projectStore.notify('エクスポートに失敗しました', 'error')
   }
 }
 </script>
@@ -403,6 +516,30 @@ async function handleStartPreview() {
 .btn-sm {
   padding: 0.4rem 1rem;
   font-size: 0.75rem;
+}
+
+.btn-publish {
+  padding: 0.4rem 1rem;
+  font-size: 0.75rem;
+  background: linear-gradient(135deg, var(--color-primary), #00b4d8);
+  color: var(--color-charcoal-deep);
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.03em;
+}
+
+.btn-publish:hover:not(:disabled) {
+  opacity: 0.85;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 242, 255, 0.4);
+}
+
+.btn-publish:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .content-types-grid {

@@ -102,6 +102,7 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/project'
+import dayjs from 'dayjs'
 
 const route = useRoute()
 const projectStore = useProjectStore()
@@ -152,7 +153,18 @@ const displayColumns = computed(() => {
 
 // ドットキー対応のネスト値取得（extra.category など）
 function getNestedValue(obj, keyPath) {
-  return keyPath.split('.').reduce((o, k) => o?.[k], obj)
+  const value = keyPath.split('.').reduce((o, k) => o?.[k], obj)
+
+  // 日付フィールドの場合はフォーマット
+  if (keyPath === 'date' && value) {
+    try {
+      return dayjs(value).format('YYYY/MM/DD')
+    } catch {
+      return value
+    }
+  }
+
+  return value
 }
 
 // ソート済みコンテンツ

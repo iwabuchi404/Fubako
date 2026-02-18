@@ -27,6 +27,16 @@ const router = createRouter({
             path: '/settings',
             name: 'settings',
             component: () => import('../views/SettingsView.vue')
+        },
+        {
+            path: '/error',
+            name: 'error',
+            component: () => import('../views/ErrorHistoryView.vue')
+        },
+        {
+            path: '/git-settings',
+            name: 'git-settings',
+            component: () => import('../views/GitSettingsView.vue')
         }
     ]
 })

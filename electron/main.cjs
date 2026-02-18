@@ -5,6 +5,7 @@ const { spawn } = require('child_process');
 const contentManager = require('./contentManager.cjs');
 const imageManager = require('./imageManager.cjs');
 const configManager = require('./configManager.cjs');
+const gitManager = require('./gitManager.cjs');
 
 let currentProjectPath = null;
 let currentConfig = null;
@@ -536,6 +537,126 @@ ipcMain.handle('detect-all-slug-collisions', async () => {
   }
 });
 
+// Git関連
+ipcMain.handle('git-init', async (event, { projectPath, developBranch }) => {
+  try {
+    const result = await gitManager.initRepo(projectPath, developBranch);
+    return result;
+  } catch (error) {
+    console.error('Failed to init git repo:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-load-config', async (event, projectPath) => {
+  try {
+    const result = await gitManager.loadGitConfig(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to load Git config:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-save-config', async (event, { projectPath, config }) => {
+  try {
+    const result = await gitManager.saveGitConfig(projectPath, config);
+    return result;
+  } catch (error) {
+    console.error('Failed to save Git config:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-get-status', async (event, projectPath) => {
+  try {
+    const result = await gitManager.getStatus(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to get Git status:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-commit', async (event, { projectPath, message }) => {
+  try {
+    const result = await gitManager.commit(projectPath, message);
+    return result;
+  } catch (error) {
+    console.error('Failed to commit:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-push', async (event, { projectPath, branch }) => {
+  try {
+    const result = await gitManager.push(projectPath, branch);
+    return result;
+  } catch (error) {
+    console.error('Failed to push:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-fetch', async (event, projectPath) => {
+  try {
+    const result = await gitManager.fetch(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to fetch:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-merge-to-production', async (event, { projectPath, developBranch, productionBranch }) => {
+  try {
+    const result = await gitManager.mergeToProduction(projectPath, developBranch, productionBranch);
+    return result;
+  } catch (error) {
+    console.error('Failed to merge to production:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-export-dist', async (event, projectPath) => {
+  try {
+    const result = await gitManager.exportDist(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to export dist:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-resolve-conflict-local', async (event, { projectPath, filePath }) => {
+  try {
+    const result = await gitManager.resolveConflictLocal(projectPath, filePath);
+    return result;
+  } catch (error) {
+    console.error('Failed to resolve conflict (local):', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-resolve-conflict-remote', async (event, { projectPath, filePath }) => {
+  try {
+    const result = await gitManager.resolveConflictRemote(projectPath, filePath);
+    return result;
+  } catch (error) {
+    console.error('Failed to resolve conflict (remote):', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-checkout', async (event, { projectPath, branch }) => {
+  try {
+    const result = await gitManager.checkout(projectPath, branch);
+    return result;
+  } catch (error) {
+    console.error('Failed to checkout branch:', error);
+    return { success: false, error: error.message };
+  }
+});
 
 
 

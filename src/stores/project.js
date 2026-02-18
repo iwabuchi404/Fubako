@@ -1,5 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { useErrorStore, parseError } from './error'
+import { useGitStore } from './git'
 
 export const useProjectStore = defineStore('project', () => {
     const projectPath = ref(null)
@@ -54,6 +56,13 @@ export const useProjectStore = defineStore('project', () => {
             previewRunning.value = true
             setupZolaErrorListener()
 
+            // Git設定をロード
+            const gitStore = useGitStore()
+            await gitStore.loadConfig(path)
+            if (gitStore.isGitEnabled) {
+                await gitStore.getStatus(path)
+            }
+
             notify(`${config.value.site?.name || 'プロジェクト'} を読み込みました`, 'success')
             return true
         } else {
@@ -77,6 +86,14 @@ export const useProjectStore = defineStore('project', () => {
             previewUrl.value = info.zolaUrl
             previewRunning.value = true
             setupZolaErrorListener()
+
+            // Git設定をロード
+            const gitStore = useGitStore()
+            await gitStore.loadConfig(path)
+            if (gitStore.isGitEnabled) {
+                await gitStore.getStatus(path)
+            }
+
             notify(`${config.value.site?.name || 'プロジェクト'} を読み込みました`, 'success')
             return true
         } else {
@@ -89,6 +106,10 @@ export const useProjectStore = defineStore('project', () => {
 
     function reset() {
         cleanupZolaErrorListener()
+        const errorStore = useErrorStore()
+        errorStore.clearErrors()
+        const gitStore = useGitStore()
+        gitStore.stopAutoFetch()
         projectPath.value = null
         config.value = null
         isLoaded.value = false
@@ -175,39 +196,120 @@ export const useProjectStore = defineStore('project', () => {
         }
         if (!window.electronAPI?.onZolaError) return
 
+        const errorStore = useErrorStore()
+
         zolaErrorCleanup = window.electronAPI.onZolaError((error) => {
             console.error('[ProjectStore] Zola error:', error)
 
             // Zolaのエラーメッセージをそのまま使用
             let errorMessage = error.raw || error.message || 'エラーが発生しました'
 
+            // エラータイプのマッピング
+            const errorTypeMap = {
+                'pathCollision': 'path-collision',
+                'process-exit': 'process-exit'
+            }
+            const mappedType = errorTypeMap[error.type] || null
+
+            // パターンマッチングでエラー情報を取得
+            const errorInfo = parseError(errorMessage, mappedType)
+
             if (error.type === 'pathCollision') {
                 previewBuildStatus.value = 'error'
                 previewBuildMessage.value = 'URLパス衝突'
                 previewBuildError.value = errorMessage
                 isBuildError.value = true
-                notify('URLパスの衝突が発生しました', 'error', 8000)
+
+                // 衝突しているスラグを抽出
+                const match = errorMessage.match(/\/([^\/]+)`/);
+                const collisionSlug = match ? match[1] : null
+
+                // スラグ情報を詳細に追加
+                const detailsWithSlug = collisionSlug
+                    ? `スラグ「${collisionSlug}」が重複しています。自動的に解決できます。`
+                    : errorInfo.details
+
+                // errorStoreにエラーを追加
+                errorStore.addError({
+                    ...errorInfo,
+                    details: detailsWithSlug,
+                    rawError: errorMessage,
+                    actions: [
+                        {
+                            label: '自動で解決する',
+                            handler: async () => {
+                                const result = await window.electronAPI.resolveSlugCollision({
+                                    type: 'news', // TODO: 現在のタイプを取得
+                                    duplicateSlug: collisionSlug
+                                })
+                                if (result.success) {
+                                    notify(`${result.resolvedCount}件の重複を解決しました`, 'success')
+                                    errorStore.resolveErrorsByType('path-collision')
+                                    await refreshContents('news') // TODO: 現在のタイプを取得
+                                } else {
+                                    notify('解決に失敗しました: ' + result.error, 'error')
+                                }
+                            }
+                        }
+                    ]
+                })
+
+                notify(errorInfo.summary, 'error', 8000)
             } else if (error.type === 'process-exit') {
                 previewRunning.value = false
                 previewUrl.value = null
                 previewBuildStatus.value = 'error'
                 previewBuildMessage.value = 'プロセス異常終了'
                 previewBuildError.value = errorMessage
-                notify('プレビューサーバーが停止しました', 'error')
+
+                // errorStoreにエラーを追加
+                errorStore.addError({
+                    ...errorInfo,
+                    rawError: errorMessage,
+                    actions: [
+                        {
+                            label: 'プレビューを再起動',
+                            handler: async () => {
+                                await startPreview()
+                            }
+                        }
+                    ]
+                })
+
+                notify(errorInfo.summary, 'error')
             } else if (error.type === 'building') {
                 previewBuildStatus.value = 'building'
                 previewBuildMessage.value = 'ビルド中...'
+                // ビルド成功時にエラーを解消
+                errorStore.resolveErrorsByType('build-error')
             } else if (error.type === 'built') {
                 previewBuildStatus.value = 'success'
                 previewBuildMessage.value = 'ビルド完了'
                 isBuildError.value = false
+                // すべてのビルドエラーを解消
+                errorStore.resolveErrorsByType('build-error')
             } else {
-                // ビルドエラー
+                // その他のビルドエラー
                 previewBuildStatus.value = 'error'
                 previewBuildMessage.value = 'ビルドエラー'
                 previewBuildError.value = errorMessage
                 isBuildError.value = true
-                notify(errorMessage, 'error', 8000)
+
+                // errorStoreにエラーを追加
+                errorStore.addError({
+                    ...errorInfo,
+                    rawError: errorMessage,
+                    actions: [
+                        {
+                            label: 'リビルドを試す',
+                            handler: async () => {
+                                await rebuildPreview()
+                            }
+                        }
+                    ]
+                })
+
+                notify(errorInfo.summary, 'error', 8000)
             }
         })
     }
@@ -523,26 +625,43 @@ export const useProjectStore = defineStore('project', () => {
             notify('プレビューサーバーが起動していません', 'error')
             return
         }
-        
+
         previewBuildStatus.value = 'building'
         previewBuildMessage.value = 'リビルド中...'
         previewBuildError.value = null
         isBuildError.value = false
-        
+
         try {
             // Zolaはファイル変更で自動リビルドされるため、
             // ここでは空の更新トリガーとして実装
             await new Promise(resolve => setTimeout(resolve, 1000))
             previewBuildStatus.value = 'success'
-            previewBuildMessage.value = 'リビルド完了'
+            previewBuildMessage.value = 'リビド完了'
             isBuildError.value = false
-            notify('リビルドしました', 'success')
+            notify('リビドしました', 'success')
         } catch (error) {
             previewBuildStatus.value = 'error'
-            previewBuildMessage.value = 'リビルドエラー'
+            previewBuildMessage.value = 'リビドエラー'
             previewBuildError.value = error.message
             isBuildError.value = true
-            notify('リビルドに失敗しました', 'error')
+
+            const errorStore = useErrorStore()
+            const errorInfo = parseError(error.message, 'build-error')
+
+            errorStore.addError({
+                ...errorInfo,
+                rawError: error.message,
+                actions: [
+                    {
+                        label: 'リビドを試す',
+                        handler: async () => {
+                            await rebuildPreview()
+                        }
+                    }
+                ]
+            })
+
+            notify(errorInfo.summary, 'error')
         }
     }
     

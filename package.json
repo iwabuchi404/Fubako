@@ -12,6 +12,9 @@
   "dependencies": {
     "@iarna/toml": "^2.2.5",
     "@kamox/plugin-chrome": "^0.1.5",
+    "archiver": "^7.0.1",
+    "dayjs": "^1.11.19",
+    "dugite": "^3.0.0",
     "js-yaml": "^4.1.1",
     "pinia": "^3.0.4",
     "sharp": "^0.34.5",
