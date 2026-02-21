@@ -37,6 +37,16 @@ async function gitExec(args, cwd) {
 }
 
 /**
+ * トークンを HTTP ヘッダーとして注入する git -c オプション引数を生成
+ * @param {string|null} token - GitHub アクセストークン
+ * @returns {string[]} git コマンドの先頭に付与する引数
+ */
+function tokenArgs(token) {
+  if (!token) return []
+  return ['-c', `http.extraHeader=Authorization: token ${token}`]
+}
+
+/**
  * Gitリポジトリ初期化
  * @param {string} projectPath - プロジェクトパス
  * @returns {Promise<Object>} 結果
@@ -60,6 +70,13 @@ async function initRepo(projectPath, developBranch = 'develop') {
     // 初期化
     const initResult = await gitExec(['init'], projectPath)
     if (!initResult.success) return { success: false, error: initResult.error }
+
+    // .gitignore を作成（存在しない場合のみ）
+    const gitignorePath = path.join(projectPath, '.gitignore')
+    if (!fs.existsSync(gitignorePath)) {
+      // Zola の公開ディレクトリのみ除外（static/uploads/ は除外しない）
+      fs.writeFileSync(gitignorePath, 'public\n', 'utf-8')
+    }
 
     // 初期コミット
     const addResult = await gitExec(['add', '.'], projectPath)
@@ -238,6 +255,13 @@ async function commit(projectPath, message) {
       // 設定失敗は無視
     }
 
+    // static/uploads/ 内のファイルが gitignore されていないか確認して警告
+    const ignoredUploads = await gitExec(
+      ['ls-files', '--ignored', '--exclude-standard', '-o', '--', 'static/uploads/'],
+      projectPath
+    )
+    const hasIgnoredImages = ignoredUploads.success && ignoredUploads.stdout.trim().length > 0
+
     // すべての変更をステージング
     const addResult = await gitExec(['add', '.'], projectPath)
     if (!addResult.success) {
@@ -261,6 +285,15 @@ async function commit(projectPath, message) {
       return { success: false, error: commitResult.error }
     }
 
+    // 画像が gitignore されている場合は警告を追加
+    if (hasIgnoredImages) {
+      return {
+        success: true,
+        warning: 'gitignore_images',
+        ignoredFiles: ignoredUploads.stdout.trim().split('\n').filter(Boolean)
+      }
+    }
+
     return { success: true }
   } catch (error) {
     console.error('[GitManager] commit error:', error)
@@ -276,19 +309,11 @@ async function commit(projectPath, message) {
  * @param {string} remote - リモート名（デフォルト: origin）
  * @returns {Promise<Object>} 結果
  */
-async function push(projectPath, branch, remote = 'origin') {
+async function push(projectPath, branch, remote = 'origin', token = null) {
   try {
-    // トラッキングブランチが設定されているか確認
-    const upstreamResult = await gitExec(['rev-parse', '--abbrev-ref', `${branch}@{u}`], projectPath)
-
-    let pushResult
-    if (!upstreamResult.success) {
-      // 初回プッシュ: 上流を設定
-      pushResult = await gitExec(['push', '--set-upstream', remote, branch], projectPath)
-    } else {
-      // 通常プッシュ
-      pushResult = await gitExec(['push'], projectPath)
-    }
+    // 常に origin <branch> を明示してプッシュ（--set-upstream でトラッキングも更新）
+    // 引数なしの git push はトラッキング設定に依存するため、ブランチ名不一致時にエラーになる
+    const pushResult = await gitExec([...tokenArgs(token), 'push', '--set-upstream', remote, branch], projectPath)
 
     if (!pushResult.success) {
       return { success: false, error: pushResult.error }
@@ -306,9 +331,9 @@ async function push(projectPath, branch, remote = 'origin') {
  * @param {string} projectPath - プロジェクトパス
  * @returns {Promise<Object>} 結果
  */
-async function fetch(projectPath) {
+async function fetch(projectPath, token = null) {
   try {
-    const result = await gitExec(['fetch'], projectPath)
+    const result = await gitExec([...tokenArgs(token), 'fetch'], projectPath)
     if (!result.success) {
       return { success: false, error: result.error }
     }
@@ -326,45 +351,23 @@ async function fetch(projectPath) {
  * @param {string} productionBranch - 本番ブランチ名
  * @returns {Promise<Object>} 結果
  */
-async function mergeToProduction(projectPath, developBranch, productionBranch) {
+async function mergeToProduction(projectPath, developBranch, productionBranch, token = null) {
   try {
-    // 最新を取得
-    await gitExec(['fetch'], projectPath)
+    // dev ブランチの内容を直接 main へ push（checkout/merge 不要）
+    // git push origin dev:main は dev の完全な状態を main に反映する
+    // ブランチ切り替えなしで実行できるため、.github 等の欠落が起きない
+    const pushResult = await gitExec(
+      [...tokenArgs(token), 'push', '--force-with-lease', 'origin', `${developBranch}:${productionBranch}`],
+      projectPath
+    )
 
-    // 本番ブランチに切り替え
-    const checkoutResult = await gitExec(['checkout', productionBranch], projectPath)
-    if (!checkoutResult.success) {
-      // 本番ブランチが存在しない場合は作成
-      const createResult = await gitExec(['checkout', '-b', productionBranch], projectPath)
-      if (!createResult.success) {
-        return { success: false, error: `本番ブランチへの切り替えに失敗: ${createResult.error}` }
-      }
-    }
-
-    // 開発ブランチから本番ブランチへマージ（開発側を優先）
-    const mergeResult = await gitExec(['merge', '-s', 'ours', developBranch, '--no-edit'], projectPath)
-    if (!mergeResult.success) {
-      // マージ失敗時は開発ブランチに戻る
-      await gitExec(['checkout', developBranch], projectPath)
-      return { success: false, error: `マージに失敗: ${mergeResult.error}` }
-    }
-
-    // 本番ブランチをプッシュ
-    const pushResult = await gitExec(['push', '--set-upstream', 'origin', productionBranch], projectPath)
     if (!pushResult.success) {
-      // プッシュ失敗時も開発ブランチに戻る
-      await gitExec(['checkout', developBranch], projectPath)
-      return { success: false, error: `プッシュに失敗: ${pushResult.error}` }
+      return { success: false, error: `公開に失敗: ${pushResult.error}` }
     }
-
-    // 開発ブランチに戻る
-    await gitExec(['checkout', developBranch], projectPath)
 
     return { success: true }
   } catch (error) {
     console.error('[GitManager] mergeToProduction error:', error)
-    // エラー時も開発ブランチに戻ることを試みる
-    try { await gitExec(['checkout', developBranch], projectPath) } catch { }
     return { success: false, error: error.error || error.message }
   }
 }
@@ -391,14 +394,16 @@ async function checkout(projectPath, branch) {
 /**
  * public/をzipにしてエクスポート
  * @param {string} projectPath - プロジェクトパス
+ * @param {string} outputPath - 出力先ファイルパス
  * @returns {Promise<Object>} 結果
  */
-async function exportDist(projectPath) {
+async function exportDist(projectPath, outputPath) {
   try {
     const archiver = require('archiver')
-    const outputPath = path.join(projectPath, 'dist-export.zip')
+    // outputPathが指定されていない場合はプロジェクト内に保存（後方互換）
+    const finalOutputPath = outputPath || path.join(projectPath, 'dist-export.zip')
 
-    const output = fs.createWriteStream(outputPath)
+    const output = fs.createWriteStream(finalOutputPath)
     const archive = archiver('zip', { zlib: { level: 9 } })
 
     output.on('close', () => {
@@ -421,7 +426,7 @@ async function exportDist(projectPath) {
 
     await archive.finalize()
 
-    return { success: true, outputPath }
+    return { success: true, outputPath: finalOutputPath }
   } catch (error) {
     console.error('[GitManager] exportDist error:', error)
     return { success: false, error: error.message }
@@ -543,6 +548,90 @@ async function resolveConflictRemote(projectPath, filePath) {
   }
 }
 
+/**
+ * CIファイルを生成してコミット・プッシュ
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} deployTarget - 'github-pages'
+ * @param {Object} options - { productionBranch, workingBranch, zolaVersion }
+ */
+async function generateCIFiles(projectPath, deployTarget, options, token = null) {
+  const {
+    productionBranch = 'main',
+    workingBranch,
+    zolaVersion = '0.19.2',
+    productionBaseUrl = ''
+  } = options
+
+  // base_url が指定されていれば --base-url オプションを追加
+  const buildCmd = productionBaseUrl
+    ? `zola build --base-url ${productionBaseUrl}`
+    : 'zola build'
+
+  const githubDir = path.join(projectPath, '.github')
+  const workflowDir = path.join(githubDir, 'workflows')
+
+  // ディレクトリ作成（なければ作成）
+  if (!fs.existsSync(githubDir)) fs.mkdirSync(githubDir)
+  if (!fs.existsSync(workflowDir)) fs.mkdirSync(workflowDir)
+
+  // deploy.yml の内容（GitHub Pages用）
+  const deployYml = `name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [${productionBranch}]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Zola
+        uses: taiki-e/install-action@v2
+        with:
+          tool: zola@${zolaVersion}
+
+      - name: Build
+        run: ${buildCmd}
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: \${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+`
+
+  // dependabot.yml の内容（全デプロイ先共通）
+  const dependabotYml = `version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "ci"
+`
+
+  fs.writeFileSync(path.join(workflowDir, 'deploy.yml'), deployYml, 'utf-8')
+  fs.writeFileSync(path.join(githubDir, 'dependabot.yml'), dependabotYml, 'utf-8')
+
+  // コミット
+  const commitResult = await commit(projectPath, 'ci: GitHub Pages デプロイ設定を追加')
+  if (!commitResult.success) return commitResult
+
+  // 現在のブランチを取得してプッシュ
+  const branchResult = await gitExec(['branch', '--show-current'], projectPath)
+  const currentBranch = branchResult.success ? branchResult.stdout.trim() : (workingBranch || 'draft')
+  const pushResult = await push(projectPath, currentBranch, 'origin', token)
+  if (!pushResult.success) return pushResult
+
+  return { success: true }
+}
+
 module.exports = {
   initRepo,
   getStatus,
@@ -556,5 +645,6 @@ module.exports = {
   setRemote,
   checkout,
   resolveConflictLocal,
-  resolveConflictRemote
+  resolveConflictRemote,
+  generateCIFiles
 }

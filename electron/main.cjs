@@ -6,6 +6,7 @@ const contentManager = require('./contentManager.cjs');
 const imageManager = require('./imageManager.cjs');
 const configManager = require('./configManager.cjs');
 const gitManager = require('./gitManager.cjs');
+const githubAuth = require('./githubAuth.cjs');
 
 let currentProjectPath = null;
 let currentConfig = null;
@@ -104,6 +105,16 @@ async function startZola(projectPath, event = null) {
     } catch (e) {
       console.warn('Failed to parse preview_url from config:', e);
     }
+  }
+
+  // git config の previewPort で上書き（1111以外が設定されている場合）
+  try {
+    const gitConfigResult = await gitManager.loadGitConfig(projectPath);
+    if (gitConfigResult?.config?.previewPort && gitConfigResult.config.previewPort !== 1111) {
+      port = String(gitConfigResult.config.previewPort);
+    }
+  } catch (e) {
+    console.warn('[main] Failed to load git config for previewPort:', e);
   }
 
   const zolaBin = process.platform === 'win32' ? 'zola.exe' : 'zola';
@@ -590,7 +601,8 @@ ipcMain.handle('git-commit', async (event, { projectPath, message }) => {
 
 ipcMain.handle('git-push', async (event, { projectPath, branch }) => {
   try {
-    const result = await gitManager.push(projectPath, branch);
+    const token = githubAuth.loadToken();
+    const result = await gitManager.push(projectPath, branch, 'origin', token);
     return result;
   } catch (error) {
     console.error('Failed to push:', error);
@@ -600,7 +612,8 @@ ipcMain.handle('git-push', async (event, { projectPath, branch }) => {
 
 ipcMain.handle('git-fetch', async (event, projectPath) => {
   try {
-    const result = await gitManager.fetch(projectPath);
+    const token = githubAuth.loadToken();
+    const result = await gitManager.fetch(projectPath, token);
     return result;
   } catch (error) {
     console.error('Failed to fetch:', error);
@@ -610,7 +623,8 @@ ipcMain.handle('git-fetch', async (event, projectPath) => {
 
 ipcMain.handle('git-merge-to-production', async (event, { projectPath, developBranch, productionBranch }) => {
   try {
-    const result = await gitManager.mergeToProduction(projectPath, developBranch, productionBranch);
+    const token = githubAuth.loadToken();
+    const result = await gitManager.mergeToProduction(projectPath, developBranch, productionBranch, token);
     return result;
   } catch (error) {
     console.error('Failed to merge to production:', error);
@@ -620,7 +634,20 @@ ipcMain.handle('git-merge-to-production', async (event, { projectPath, developBr
 
 ipcMain.handle('git-export-dist', async (event, projectPath) => {
   try {
-    const result = await gitManager.exportDist(projectPath);
+    // 保存先ダイアログを表示
+    const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+      title: 'エクスポート先を選択',
+      defaultPath: 'site-export.zip',
+      filters: [
+        { name: 'ZIPファイル', extensions: ['zip'] }
+      ]
+    });
+
+    if (canceled || !filePath) {
+      return { success: false, cancelled: true };
+    }
+
+    const result = await gitManager.exportDist(projectPath, filePath);
     return result;
   } catch (error) {
     console.error('Failed to export dist:', error);
@@ -656,6 +683,56 @@ ipcMain.handle('git-checkout', async (event, { projectPath, branch }) => {
     console.error('Failed to checkout branch:', error);
     return { success: false, error: error.message };
   }
+});
+
+ipcMain.handle('git-generate-ci', async (event, { projectPath, deployTarget, options }) => {
+  try {
+    const token = githubAuth.loadToken();
+    const result = await gitManager.generateCIFiles(projectPath, deployTarget, options, token);
+    return result;
+  } catch (error) {
+    console.error('Failed to generate CI files:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+// GitHub Device Flow 認証
+ipcMain.handle('github-auth-start', async () => {
+  try {
+    const data = await githubAuth.requestDeviceCode();
+    shell.openExternal(data.verification_uri);
+    return { success: true, ...data };
+  } catch (error) {
+    console.error('Failed to start GitHub auth:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('github-auth-poll', async (event, { deviceCode }) => {
+  try {
+    const data = await githubAuth.pollForToken(deviceCode);
+    if (data.access_token) {
+      githubAuth.saveToken(data.access_token);
+      return { success: true, authenticated: true };
+    }
+    if (data.error === 'authorization_pending') {
+      return { success: true, authenticated: false, pending: true };
+    }
+    return { success: false, error: data.error_description || data.error };
+  } catch (error) {
+    console.error('Failed to poll GitHub auth:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('github-auth-status', async () => {
+  const token = githubAuth.loadToken();
+  return { authenticated: !!token };
+});
+
+ipcMain.handle('github-auth-clear', async () => {
+  githubAuth.clearToken();
+  return { success: true };
 });
 
 

@@ -44,4 +44,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
     gitResolveConflictLocal: (projectPath, filePath) => ipcRenderer.invoke('git-resolve-conflict-local', { projectPath, filePath }),
     gitResolveConflictRemote: (projectPath, filePath) => ipcRenderer.invoke('git-resolve-conflict-remote', { projectPath, filePath }),
     gitCheckout: (projectPath, branch) => ipcRenderer.invoke('git-checkout', { projectPath, branch }),
+    gitGenerateCI: (projectPath, deployTarget, options) =>
+      ipcRenderer.invoke('git-generate-ci', { projectPath, deployTarget, options }),
+
+    // GitHub認証 (Device Flow)
+    githubAuthStart: () => ipcRenderer.invoke('github-auth-start'),
+    githubAuthPoll: (deviceCode) => ipcRenderer.invoke('github-auth-poll', { deviceCode }),
+    githubAuthStatus: () => ipcRenderer.invoke('github-auth-status'),
+    githubAuthClear: () => ipcRenderer.invoke('github-auth-clear'),
 });

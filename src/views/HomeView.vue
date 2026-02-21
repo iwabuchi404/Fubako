@@ -241,6 +241,14 @@ async function handleGitSave() {
   try {
     const result = await gitStore.commit(projectStore.projectPath, 'Update content')
     if (result.success) {
+      // 画像が .gitignore で除外されている場合は警告
+      if (result.warning === 'gitignore_images') {
+        const count = result.ignoredFiles?.length || 0
+        projectStore.notify(
+          `画像ファイル ${count} 件が .gitignore により除外されています。プロジェクトの .gitignore から static/uploads/ の除外設定を削除してください。`,
+          'warning'
+        )
+      }
       const pushResult = await gitStore.push(projectStore.projectPath)
       if (pushResult.success) {
         projectStore.notify('Gitに保存・プッシュしました', 'success')
