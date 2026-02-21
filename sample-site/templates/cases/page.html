@@ -17,7 +17,7 @@
     <!-- ヒーロー画像 -->
     {% if page.extra.hero_image %}
     <div class="case-hero" style="margin-bottom: var(--space-6);">
-      <img src="{{ page.extra.hero_image }}" alt="{{ page.title }}">
+      <img src="{{ get_url(path=page.extra.hero_image) }}" alt="{{ page.title }}">
     </div>
     {% endif %}
 
@@ -28,7 +28,7 @@
     {% if page.extra.client_name or page.extra.logo %}
     <div class="case-client-info">
       {% if page.extra.logo %}
-      <img src="{{ page.extra.logo }}" alt="{{ page.extra.client_name | default(value='Client') }}">
+      <img src="{{ get_url(path=page.extra.logo) }}" alt="{{ page.extra.client_name | default(value='Client') }}">
       {% endif %}
       <div>
         <h2 style="font-size: var(--font-size-xl); margin: 0 0 var(--space-1) 0;">{{ page.extra.client_name }} 様</h2>
@@ -71,7 +71,7 @@
         {% if related.permalink != page.permalink %}
         <article class="content-card" role="listitem">
           {% if related.extra.logo %}
-          <img src="{{ related.extra.logo }}" alt="{{ related.extra.client_name }}" class="content-card__image">
+          <img src="{{ get_url(path=related.extra.logo) }}" alt="{{ related.extra.client_name }}" class="content-card__image">
           {% endif %}
           <div class="content-card__content">
             <h2 class="content-card__title">

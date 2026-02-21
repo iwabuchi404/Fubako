@@ -24,7 +24,7 @@
 <!-- サイトの主要メッセージとCTAを表示するヒーローセクション -->
 {% if section.extra.hero_image %}
 <section class="hero" aria-labelledby="hero-title">
-  <img src="{{ section.extra.hero_image }}" alt="{{ section.title }}" class="hero__image">
+  <img src="{{ get_url(path=section.extra.hero_image) }}" alt="{{ section.title }}" class="hero__image">
   <div class="hero__content">
     <h1 id="hero-title">DXを成功に導く<br>技術パートナー</h1>
     {% if section.description %}
@@ -211,9 +211,9 @@
       {%- for page in cases_section.pages | slice(end=3) -%}
       <article class="content-card">
         {% if page.extra.logo %}
-        <img src="{{ page.extra.logo }}" alt="{{ page.extra.client_name }}" class="content-card__image">
+        <img src="{{ get_url(path=page.extra.logo) }}" alt="{{ page.extra.client_name }}" class="content-card__image">
         {% elif page.extra.thumbnail %}
-        <img src="{{ page.extra.thumbnail }}" alt="{{ page.title }}" class="content-card__image">
+        <img src="{{ get_url(path=page.extra.thumbnail) }}" alt="{{ page.title }}" class="content-card__image">
         {% endif %}
         <div class="content-card__content">
           <h3 class="content-card__title">
