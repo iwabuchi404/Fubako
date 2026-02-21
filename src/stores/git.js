@@ -99,6 +99,7 @@ export const useGitStore = defineStore('git', () => {
         }
 
         startAutoFetch(projectPath)
+        startFileChangeWatch(projectPath)
       }
     }
   }
@@ -326,6 +327,23 @@ export const useGitStore = defineStore('git', () => {
     }
   }
 
+  // ファイル変更通知の購読（Git未保存状態を即時検知）
+  let unsubscribeFileWatch = null
+
+  function startFileChangeWatch(projectPath) {
+    if (unsubscribeFileWatch) {
+      unsubscribeFileWatch()
+      unsubscribeFileWatch = null
+    }
+    if (!window.electronAPI?.onProjectFilesChanged) return
+
+    unsubscribeFileWatch = window.electronAPI.onProjectFilesChanged(() => {
+      if (isGitEnabled.value && projectPath) {
+        getStatus(projectPath)
+      }
+    })
+  }
+
   // マウント時に定期フェッチを開始
   onMounted(() => {
     // ここではprojectPathがないので、loadConfig呼び出し時に開始
@@ -334,6 +352,10 @@ export const useGitStore = defineStore('git', () => {
   // アンマウント時に定期フェッチを停止
   onUnmounted(() => {
     stopAutoFetch()
+    if (unsubscribeFileWatch) {
+      unsubscribeFileWatch()
+      unsubscribeFileWatch = null
+    }
   })
 
   return {
@@ -374,6 +396,7 @@ export const useGitStore = defineStore('git', () => {
     resolveConflictLocal,
     resolveConflictRemote,
     startAutoFetch,
-    stopAutoFetch
+    stopAutoFetch,
+    startFileChangeWatch
   }
 })

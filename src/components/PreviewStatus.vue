@@ -1,85 +1,112 @@
 <template>
   <div class="preview-status-bar">
-    <div class="status-indicator">
-      <div 
-        class="status-dot" 
-        :class="statusClass"
-      ></div>
-      <span class="status-text">{{ statusMessage }}</span>
+
+    <!-- 左: Git状態 -->
+    <div class="git-status-section">
+      <template v-if="gitStore.isGitEnabled">
+        <div class="status-dot" :class="gitDotClass"></div>
+        <span class="status-text">{{ gitStatusText }}</span>
+        <span v-if="gitStore.currentBranch" class="git-branch">{{ gitStore.currentBranch }}</span>
+      </template>
+      <template v-else>
+        <span class="status-text muted">Git 未設定</span>
+      </template>
     </div>
-    
-    <div class="status-actions">
-      <button 
-        v-if="projectStore.previewRunning"
-        @click="handleRebuild"
-        class="btn-icon-sm"
-        title="リビルド"
-        :disabled="isRebuilding"
+
+    <!-- 右: プレビュー状態 -->
+    <div class="preview-section">
+      <div class="status-indicator">
+        <div class="status-dot" :class="statusClass"></div>
+        <span class="status-text">{{ statusMessage }}</span>
+      </div>
+
+      <div class="status-actions">
+        <button
+          v-if="projectStore.previewRunning"
+          @click="handleRebuild"
+          class="btn-icon-sm"
+          title="リビルド"
+          :disabled="isRebuilding"
+        >
+          <span v-if="isRebuilding">リビルド中...</span>
+          <span v-else>🔄</span>
+        </button>
+        <button
+          v-if="projectStore.previewRunning"
+          @click="handleRestart"
+          class="btn-icon-sm"
+          title="サーバー再起動"
+          :disabled="isRestarting"
+        >
+          <span v-if="isRestarting">再起動中...</span>
+          <span v-else>⚡</span>
+        </button>
+        <button
+          v-if="!projectStore.previewRunning"
+          @click="handleStart"
+          class="btn-icon-sm"
+          title="サーバー起動"
+        >
+          <span v-if="isStarting">起動中...</span>
+          <span v-else>▶</span>
+        </button>
+        <button
+          v-if="projectStore.previewRunning"
+          @click="handleStop"
+          class="btn-icon-sm"
+          title="サーバー停止"
+        >
+          ⏹
+        </button>
+      </div>
+
+      <div
+        v-if="projectStore.previewBuildError"
+        class="error-details"
+        @click="showErrorDetails = !showErrorDetails"
       >
-        <span v-if="isRebuilding">リビルド中...</span>
-        <span v-else>🔄</span>
-      </button>
-      <button 
-        v-if="projectStore.previewRunning"
-        @click="handleRestart"
-        class="btn-icon-sm"
-        title="サーバー再起動"
-        :disabled="isRestarting"
-      >
-        <span v-if="isRestarting">再起動中...</span>
-        <span v-else>⚡</span>
-      </button>
-      <button 
-        v-if="!projectStore.previewRunning"
-        @click="handleStart"
-        class="btn-icon-sm"
-        title="サーバー起動"
-      >
-        <span v-if="isStarting">起動中...</span>
-        <span v-else>▶</span>
-      </button>
-      <button 
-        v-if="projectStore.previewRunning"
-        @click="handleStop"
-        class="btn-icon-sm"
-        title="サーバー停止"
-      >
-        ⏹
-      </button>
-    </div>
-    
-    <div
-      v-if="projectStore.previewBuildError"
-      class="error-details"
-      @click="showErrorDetails = !showErrorDetails"
-    >
-      <span class="error-toggle">{{ showErrorDetails ? '▲' : '▼' }}</span>
-      <div v-show="showErrorDetails" class="error-content">
-        <h4>エラー詳細</h4>
-        <p class="error-message">{{ projectStore.previewBuildError }}</p>
-        <div v-if="projectStore.previewUrl" class="error-actions">
-          <a
-            :href="projectStore.previewUrl"
-            target="_blank"
-            class="btn-link"
-          >
-            ブラウザで確認
-          </a>
+        <span class="error-toggle">{{ showErrorDetails ? '▲' : '▼' }}</span>
+        <div v-show="showErrorDetails" class="error-content">
+          <h4>エラー詳細</h4>
+          <p class="error-message">{{ projectStore.previewBuildError }}</p>
+          <div v-if="projectStore.previewUrl" class="error-actions">
+            <a :href="projectStore.previewUrl" target="_blank" class="btn-link">
+              ブラウザで確認
+            </a>
+          </div>
         </div>
       </div>
     </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed } from 'vue'
 import { useProjectStore } from '../stores/project'
+import { useGitStore } from '../stores/git'
 
 const projectStore = useProjectStore()
+const gitStore = useGitStore()
 const isRebuilding = ref(false)
 const isRestarting = ref(false)
 const isStarting = ref(false)
 const showErrorDetails = ref(true)
+
+// Git状態ドット
+const gitDotClass = computed(() => {
+  if (gitStore.hasUncommittedChanges || gitStore.isAheadOfRemote) return 'status-warn'
+  if (gitStore.isBehindRemote) return 'status-building'
+  return 'status-success'
+})
+
+// Git状態テキスト
+const gitStatusText = computed(() => {
+  if (gitStore.hasUncommittedChanges) return '未保存の変更あり'
+  if (gitStore.isAheadOfRemote) return 'プッシュ待ち'
+  if (gitStore.isBehindRemote) return 'リモートに更新あり'
+  return '保存済み'
+})
 
 const statusClass = computed(() => {
   const status = projectStore.previewBuildStatus
@@ -165,6 +192,34 @@ async function handleStop() {
   gap: 1rem;
 }
 
+/* 左: Git状態 */
+.git-status-section {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.git-branch {
+  font-size: 0.7rem;
+  font-family: var(--font-mono);
+  color: rgba(255, 255, 255, 0.4);
+  padding: 0.1rem 0.4rem;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 3px;
+}
+
+.muted {
+  color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* 右: プレビュー状態 */
+.preview-section {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
 .status-indicator {
   display: flex;
   align-items: center;
@@ -198,6 +253,11 @@ async function handleStop() {
   background: #ff6b6b;
   box-shadow: 0 0 8px rgba(255, 107, 107, 0.5);
   animation: flash 0.5s ease-in-out infinite;
+}
+
+.status-dot.status-warn {
+  background: #f59e0b;
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
 }
 
 @keyframes pulse {

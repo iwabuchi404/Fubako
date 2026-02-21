@@ -49,67 +49,98 @@
           <p class="project-path-display">{{ projectStore.projectPath }}</p>
         </div>
 
-        <div class="dashboard-controls glass">
-          <div class="site-badge">
-            <span class="label">SITE</span>
-            <span class="value">{{ projectStore.config?.site?.name }}</span>
-          </div>
-          <div class="divider"></div>
+        <div class="dashboard-right">
 
-          <!-- Gitボタン -->
-          <div v-if="showGitButtons" class="git-actions">
-            <button
-              @click="handleGitSave"
-              class="btn-secondary btn-sm"
-              :disabled="!gitStore.canSave || gitStore.loading.commit"
-            >
-              {{ gitStore.loading.commit ? '保存中...' : 'Git保存' }}
-            </button>
-            <button
-              @click="handleGitFetch"
-              class="btn-secondary btn-sm"
-              :disabled="!gitStore.canFetch || gitStore.loading.fetch"
-            >
-              {{ gitStore.loading.fetch ? '更新中...' : '更新' }}
-            </button>
-            <button
-              @click="handleGitPublish"
-              class="btn-publish btn-sm"
-              :disabled="!gitStore.canPublish || gitStore.loading.merge"
-              title="`${gitStore.settings?.developBranch} → ${gitStore.settings?.productionBranch} へ公開`"
-            >
-              {{ gitStore.loading.merge ? '公開中...' : '本番公開' }}
-            </button>
+          <!-- サイト名（別枠） -->
+          <div class="site-name-card glass">
+            <span class="site-label">SITE</span>
+            <span class="site-name">{{ projectStore.config?.site?.name }}</span>
           </div>
 
-          <!-- エクスポートボタン（Git未設定時も表示） -->
-          <button
-            @click="handleExport"
-            class="btn-secondary btn-sm"
-            :disabled="gitStore.loading.export"
-          >
-            {{ gitStore.loading.export ? 'エクスポート中...' : 'エクスポート' }}
-          </button>
+          <!-- ボタン群 -->
+          <div class="dashboard-controls glass">
 
-          <div class="divider"></div>
+            <!-- 1段目: Git/エクスポート操作 -->
+            <div class="action-row">
+              <div v-if="showGitButtons" class="git-actions">
+                <button
+                  @click="handleGitSave"
+                  class="btn-secondary btn-sm"
+                  :disabled="!gitStore.canSave || gitStore.loading.commit"
+                >
+                  {{ gitStore.loading.commit ? 'アップ中...' : '保存してアップ' }}
+                </button>
+                <button
+                  @click="handleGitFetch"
+                  class="btn-secondary btn-sm"
+                  :disabled="!gitStore.canFetch || gitStore.loading.fetch"
+                >
+                  {{ gitStore.loading.fetch ? '確認中...' : '更新を確認' }}
+                </button>
+                <button
+                  @click="handleGitPublish"
+                  class="btn-publish btn-sm"
+                  :disabled="!gitStore.canPublish || gitStore.loading.merge"
+                  :title="`${gitStore.settings?.developBranch} → ${gitStore.settings?.productionBranch} へ公開`"
+                >
+                  {{ gitStore.loading.merge ? '公開中...' : '公開する' }}
+                </button>
+              </div>
 
-          <div class="preview-actions">
-            <button
-              v-if="!projectStore.previewRunning"
-              @click="handleStartPreview"
-              class="btn-primary btn-sm"
-              :disabled="previewStarting"
-            >
-              {{ previewStarting ? '起動中...' : 'プレビュー開始' }}
-            </button>
-            <a
-              v-if="projectStore.previewUrl"
-              :href="projectStore.previewUrl"
-              target="_blank"
-              class="btn-secondary btn-sm"
-            >
-              サイトを見る
-            </a>
+              <button
+                @click="handleExport"
+                class="btn-secondary btn-sm"
+                :disabled="gitStore.loading.export"
+              >
+                {{ gitStore.loading.export ? 'エクスポート中...' : 'エクスポート' }}
+              </button>
+            </div>
+
+            <!-- 2段目: プレビュー操作 + サイト確認 -->
+            <div class="action-row action-row-preview">
+              <button
+                v-if="!projectStore.previewRunning"
+                @click="handleStartPreview"
+                class="btn-primary btn-sm"
+                :disabled="previewStarting"
+              >
+                {{ previewStarting ? '起動中...' : 'プレビュー開始' }}
+              </button>
+              <button
+                v-else
+                @click="handleStopPreview"
+                class="btn-secondary btn-sm"
+              >
+                プレビュー停止
+              </button>
+
+              <div class="divider"></div>
+
+              <div class="site-link-group" :class="{ disabled: !projectStore.previewUrl }">
+                <span class="site-link-label">ローカル</span>
+                <button
+                  class="btn-secondary btn-sm"
+                  :disabled="!projectStore.previewUrl"
+                  @click="openInBrowser(projectStore.previewUrl)"
+                >
+                  ブラウザで開く ↗
+                </button>
+              </div>
+
+              <div class="divider"></div>
+
+              <div class="site-link-group" :class="{ disabled: !productionUrl }">
+                <span class="site-link-label">本番</span>
+                <button
+                  class="btn-secondary btn-sm"
+                  :disabled="!productionUrl"
+                  @click="openInBrowser(productionUrl)"
+                >
+                  ブラウザで開く ↗
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
       </header>
@@ -176,6 +207,9 @@ const projectHistory = ref([])
 // Gitボタンの表示条件
 const showGitButtons = computed(() => gitStore.isGitEnabled)
 
+// 本番URL（Git設定の productionBaseUrl）
+const productionUrl = computed(() => gitStore.gitConfig?.productionBaseUrl || '')
+
 async function loadHistory() {
   try {
     projectHistory.value = await window.electronAPI.getProjectHistory()
@@ -237,6 +271,15 @@ async function handleStartPreview() {
   }
 }
 
+async function handleStopPreview() {
+  await projectStore.stopPreview()
+}
+
+async function openInBrowser(url) {
+  if (!url) return
+  await window.electronAPI.openInBrowser(url)
+}
+
 async function handleGitSave() {
   try {
     const result = await gitStore.commit(projectStore.projectPath, 'Update content')
@@ -256,11 +299,11 @@ async function handleGitSave() {
         projectStore.notify('保存しましたがプッシュに失敗しました: ' + pushResult.error, 'warning')
       }
     } else {
-      projectStore.notify('Git保存に失敗しました: ' + result.error, 'error')
+      projectStore.notify('保存に失敗しました: ' + result.error, 'error')
     }
   } catch (error) {
     console.error('Git save error:', error)
-    projectStore.notify('Git保存エラー', 'error')
+    projectStore.notify('保存エラー', 'error')
   }
 }
 
@@ -468,7 +511,7 @@ async function handleExport() {
 .dashboard-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
+  align-items: flex-start;
   margin-bottom: 2rem;
 }
 
@@ -483,32 +526,80 @@ async function handleExport() {
   font-family: var(--font-mono);
 }
 
-.dashboard-controls {
+/* サイト名 + ボタン群の縦並びラッパー */
+.dashboard-right {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+/* サイト名カード */
+.site-name-card {
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 1.25rem;
+  background: var(--color-charcoal-main);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+}
+
+.site-label {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--color-text-dark);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.site-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--color-primary);
+}
+
+.dashboard-controls {
+  display: flex;
+  flex-direction: column;
   padding: 0.6rem 1.25rem;
   background: var(--color-charcoal-main);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  gap: 1.25rem;
+  gap: 0.6rem;
 }
 
-.site-badge {
+.action-row {
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
 }
 
-.site-badge .label {
-  font-size: 0.6rem;
-  font-weight: 700;
+.action-row-preview {
+  border-top: 1px solid var(--glass-border);
+  padding-top: 0.5rem;
+  justify-content: flex-end;
+}
+
+.site-link-group {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.site-link-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--color-text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.site-link-group.disabled .site-link-label {
   color: var(--color-text-dark);
 }
 
-.site-badge .value {
-  font-weight: 500;
-  font-size: 0.85rem;
-  color: var(--color-primary);
-}
 
 .divider {
   width: 1px;
@@ -519,6 +610,16 @@ async function handleExport() {
 .preview-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.git-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.git-actions .btn-sm:last-child {
+  margin-left: 0.25rem; /* 公開するボタンを少し離す */
 }
 
 .btn-sm {

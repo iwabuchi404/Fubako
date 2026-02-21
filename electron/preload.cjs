@@ -47,6 +47,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     gitGenerateCI: (projectPath, deployTarget, options) =>
       ipcRenderer.invoke('git-generate-ci', { projectPath, deployTarget, options }),
 
+    // プロジェクトファイル変更通知
+    onProjectFilesChanged: (callback) => {
+        const handler = () => callback()
+        ipcRenderer.on('project-files-changed', handler)
+        return () => ipcRenderer.removeListener('project-files-changed', handler)
+    },
+
     // GitHub認証 (Device Flow)
     githubAuthStart: () => ipcRenderer.invoke('github-auth-start'),
     githubAuthPoll: (deviceCode) => ipcRenderer.invoke('github-auth-poll', { deviceCode }),

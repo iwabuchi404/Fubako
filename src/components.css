@@ -33,9 +33,16 @@
     border-color: var(--glass-border);
 }
 
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
     background: var(--color-charcoal-muted);
     border-color: var(--color-text-dim);
+}
+
+.btn-primary:disabled,
+.btn-secondary:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: grayscale(30%);
 }
 
 .btn-edit {

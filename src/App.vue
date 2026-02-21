@@ -36,12 +36,6 @@
       <router-view />
     </main>
 
-    <!-- Gitフッター通知 -->
-    <div v-if="showGitFooterNotice" class="git-footer-notice">
-      <span class="git-icon">Git</span>
-      <span class="git-message">未保存の変更があります</span>
-    </div>
-
     <!-- エラー通知エリア -->
     <ErrorNotificationArea />
 
@@ -57,7 +51,7 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted, computed } from 'vue'
+import { onMounted, onUnmounted } from 'vue'
 import { useProjectStore } from './stores/project'
 import { useErrorStore } from './stores/error'
 import { useGitStore } from './stores/git'
@@ -69,11 +63,6 @@ import GitLoadingModal from './components/GitLoadingModal.vue'
 const projectStore = useProjectStore()
 const errorStore = useErrorStore()
 const gitStore = useGitStore()
-
-// フッター通知の表示条件
-const showGitFooterNotice = computed(() => {
-  return gitStore.isGitEnabled && gitStore.hasUncommittedChanges
-})
 
 onMounted(() => {
   // プロジェクトが既にロードされている場合（自動ロード等）のフォールバック
@@ -159,13 +148,11 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 2px solid transparent;
   transition: all 0.3s ease;
 }
 
 .nav-git-link.git-enabled {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 8px rgba(0, 242, 255, 0.3);
+  outline-offset: -2px;
 }
 
 /* エラーナビゲーションリンク */
@@ -173,12 +160,12 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  border: 2px solid transparent;
   transition: all 0.3s ease;
 }
 
 .nav-error-link.has-error {
-  border-color: var(--color-error);
+  outline: 2px solid var(--color-error);
+  outline-offset: -2px;
   box-shadow: 0 0 8px rgba(255, 107, 107, 0.3);
 }
 
@@ -193,31 +180,6 @@ onUnmounted(() => {
   text-align: center;
 }
 
-/* Gitフッター通知 */
-.git-footer-notice {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: var(--color-primary);
-  color: var(--color-charcoal-deep);
-  padding: 0.6rem 1.5rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-weight: 600;
-  font-size: 0.85rem;
-  z-index: 1001;
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.git-icon {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: var(--radius-sm);
-}
 
 .app-main {
   /* Remove constraints to allow full-width views like EditView */

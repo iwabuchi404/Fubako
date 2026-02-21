@@ -16,6 +16,40 @@ let mainWindow = null;
 let zolaStoppedIntentionally = false;
 let lastZolaStderr = '';
 
+// プロジェクトファイル監視
+let fileWatcher = null;
+let fileChangeTimeout = null;
+
+function startFileWatcher(projectPath) {
+  if (fileWatcher) {
+    fileWatcher.close();
+    fileWatcher = null;
+  }
+  if (fileChangeTimeout) {
+    clearTimeout(fileChangeTimeout);
+    fileChangeTimeout = null;
+  }
+
+  try {
+    fileWatcher = fs.watch(projectPath, { recursive: true }, (eventType, filename) => {
+      if (!filename) return;
+      // .git/ と public/ の変更は無視
+      const normalized = filename.replace(/\\/g, '/');
+      if (normalized.startsWith('.git/') || normalized.startsWith('public/')) return;
+
+      // デバウンス（500ms）
+      if (fileChangeTimeout) clearTimeout(fileChangeTimeout);
+      fileChangeTimeout = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('project-files-changed');
+        }
+      }, 500);
+    });
+  } catch (e) {
+    console.warn('[main] File watcher failed to start:', e.message);
+  }
+}
+
 // プロジェクト履歴管理
 const MAX_HISTORY = 10;
 
@@ -250,6 +284,9 @@ ipcMain.handle('load-config', async (event, projectPath) => {
 
     // プロジェクト切替時にインデックスキャッシュをクリア
     contentManager.invalidateIndexCache();
+
+    // ファイル変更監視を開始（Git未保存状態の即時検知用）
+    startFileWatcher(projectPath);
 
     // プレビューサーバーを自動起動
     await startZola(projectPath);
