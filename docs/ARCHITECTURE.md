@@ -1,7 +1,7 @@
 # Fubako アーキテクチャ・機能設計書
 
-**バージョン:** 5.0.0 (Final)  
-**最終更新:** 2025年11月24日
+**バージョン:** 6.0.0 (Current)  
+**最終更新:** 2026年2月22日
 
 ---
 
@@ -12,12 +12,12 @@
 | **App Shell** | Electron | 28.x | クロスプラットフォーム配布、ローカルFS操作権限。 |
 | **Backend** | Node.js | 18.x | Electron Main Process。ファイルIO、Git操作担当。 |
 | **Frontend** | Vue 3 + Vite | 3.x | 開発効率、コンポーネント設計の容易さ。 |
-| **SSG Engine** | **Zola** | 0.18.x | Rust製シングルバイナリ。超高速、依存関係不要。 |
+| **SSG Engine** | **Zola** | 0.19.x | Rust製シングルバイナリ。超高速、依存関係不要。 |
 | **Template** | Tera | - | Zola標準。Jinja2/Liquidライクでデザイナーに親和性あり。 |
-| **Editor** | TipTap | 2.x | Vue親和性が高いヘッドレスWYSIWYGエディタ。 |
-| **Image** | Sharp | 0.33.x | 高速な画像リサイズ処理（Phase 2以降）。 |
+| **Image** | Sharp | 0.34.x | 高速な画像リサイズ・最適化処理。 |
 | **YAML Parser** | js-yaml | 4.x | YAML ↔ JSON 変換ライブラリ。 |
-| **Git** | simple-git | 3.x | Node.jsからGitコマンドを実行（Phase 2以降）。 |
+| **TOML Parser** | @iarna/toml | 2.2.x | config.toml の読み書き。 |
+| **Git** | dugite | 3.x | Gitバイナリを内包し、環境に依存せずGit操作を実行。 |
 
 ---
 
@@ -768,36 +768,19 @@ if (process.platform !== 'win32') {
 
 ## 9. まとめ
 
-### Phase 1 アーキテクチャの特徴
+### 現在のアーキテクチャの特徴
 
-✅ **実装済み:**
-- Electron + Vue 3 + Zola の基本連携
-- site-config.yml の動的UI生成
-- Markdown (Frontmatter + Body) の保存・読み込み
-- 画像アップロード（リサイズなし）
-- 基本的なエラーハンドリング（3パターン）
+✅ **実装完了:**
+- **コア:** Electron + Vue 3 (Vite) + Zola の高度な連携
+- **コンテンツ:** スラグ衝突の自動検知と解決、動的UI生成
+- **画像:** Sharpによる自動リサイズと年月フォルダ整理
+- **Git:** Device Flow認証、Commit & Push、CI設定の自動生成
+- **設定:** `config.toml` のGUI編集機能
 
-❌ **未実装（Phase 2以降）:**
-- Sharp による画像リサイズ
-- Git連携（排他制御、デプロイ）
-- taxonomies 対応
-- メディアライブラリ画面
-- config.toml 整合性チェック
+### 開発ロードマップの状況
 
-### 開発の進め方
-
-**Phase 1:**
-1. Electron + Vue のボイラープレート構築
-2. IPC通信の基本実装
-3. Zolaプロセス管理
-4. フォーム動的生成
-5. Markdown読み書き実装
-6. 画像アップロード（単純コピー）
-
-**Phase 2:**
-1. Sharp統合
-2. Git連携
-3. メディアライブラリ
+- **Phase 1 & 2:** 完了。基本的な編集・公開フローが構築済み。
+- **Phase 3:** Taxonomies対応、SEO設定UI、配布パッケージングを進行中。
 4. エラーハンドリング強化
 5. パッケージング（Electron Builder）
 
