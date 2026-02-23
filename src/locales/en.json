@@ -1,0 +1,102 @@
+{
+    "common": {
+        "save": "Save",
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "edit": "Edit",
+        "close": "Close",
+        "loading": "Loading...",
+        "error": "Error",
+        "success": "Success",
+        "warning": "Warning",
+        "info": "Info",
+        "language": "Language"
+    },
+    "nav": {
+        "home": "Home",
+        "dashboard": "Dashboard",
+        "contents": "Contents",
+        "settings": "Settings",
+        "git": "Git",
+        "error": "Error",
+        "media": "Media"
+    },
+    "home": {
+        "hero": {
+            "subtitle": "The Digital Workbench for Modern Creators."
+        },
+        "dashboard": "Dashboard",
+        "openProject": "Open Project",
+        "recentWorkspaces": "Recent Workspaces",
+        "siteName": "Site Name",
+        "git": {
+            "saveAndPush": "Save & Push",
+            "saving": "Pushing...",
+            "checkUpdate": "Check Updates",
+            "checking": "Checking...",
+            "publish": "Publish",
+            "publishing": "Publishing...",
+            "publishTitle": "Publish {develop} → {production}"
+        },
+        "export": {
+            "label": "Export",
+            "exporting": "Exporting..."
+        },
+        "preview": {
+            "start": "Start Preview",
+            "starting": "Starting...",
+            "stop": "Stop Preview",
+            "local": "Local",
+            "production": "Production",
+            "openBrowser": "Open Browser ↗"
+        },
+        "contents": {
+            "list": "List",
+            "new": "New"
+        },
+        "siteSettings": {
+            "title": "Site Settings ⚙️",
+            "description": "Name, SEO, SNS, Config",
+            "open": "Open Settings"
+        },
+        "gitIgnoreWarning": "{count} image files are ignored by .gitignore. Please remove static/uploads/ from your .gitignore."
+    },
+    "git": {
+        "saveSuccess": "Saved and pushed to Git",
+        "savePushFailed": "Saved but failed to push: {error}",
+        "saveFailed": "Failed to save: {error}",
+        "saveError": "Save error",
+        "remoteUpdate": "Remote has updates",
+        "noUpdate": "No updates",
+        "updateFailed": "Update failed: {error}",
+        "publishConfirm": "Publish branch \"{develop}\" to \"{production}\".\nAre you sure?",
+        "publishSuccess": "Published to production",
+        "publishFailed": "Failed to publish: {error}"
+    },
+    "project": {
+        "loadSuccess": "Loaded {name}",
+        "loadError": "Failed to load config: {error}",
+        "previewStarted": "Preview server started",
+        "previewStopped": "Preview server stopped",
+        "previewStartError": "Failed to start preview server: {error}",
+        "previewStopError": "Failed to stop preview server",
+        "buildInProgress": "Building...",
+        "buildComplete": "Build complete",
+        "slugCollision": "URL Path Collision",
+        "slugCollisionDetail": "Slug \"{slug}\" is duplicated. Can be automatically resolved.",
+        "resolveAuto": "Resolve Automatically",
+        "resolveSuccess": "Resolved {count} collisions",
+        "processExited": "Process exited unexpectedly",
+        "restartPreview": "Restart Preview"
+    },
+    "settings": {
+        "title": "Site Settings",
+        "buildError": "Build error occurred",
+        "showDetail": "Show Detail",
+        "hideDetail": "Hide Detail",
+        "errorDetail": "Error details",
+        "rebuild": "Try rebuilding",
+        "required": "This field is required",
+        "validationError": "Please check your input"
+    }
+}

@@ -3,20 +3,26 @@
     <!-- Welcome Screen (Not Loaded) -->
     <div v-show="!projectStore.isLoaded" class="welcome-screen fade-in-up">
       <div class="hero-section">
-        <span class="version-tag">Alpha v0.2.0</span>
+        <div class="hero-header">
+          <span class="version-tag">Alpha v0.2.0</span>
+          <div class="lang-switcher">
+            <button @click="changeLanguage('ja')" :class="{ active: currentLocale === 'ja' }">JA</button>
+            <button @click="changeLanguage('en')" :class="{ active: currentLocale === 'en' }">EN</button>
+          </div>
+        </div>
         <h1 class="hero-title text-glow">FUBAKO</h1>
-        <p class="hero-subtitle">The Digital Workbench for Modern Creators.</p>
+        <p class="hero-subtitle">{{ $t('home.hero.subtitle') }}</p>
         
         <div class="main-actions">
           <button @click="handleOpenProject" class="btn-primary btn-hero">
-            <span>プロジェクトを新規に開く</span>
+            <span>{{ $t('home.openProject') }}</span>
             <i class="icon-folder-open"></i>
           </button>
         </div>
       </div>
 
       <div v-if="projectHistory.length > 0" class="history-section">
-        <h3 class="section-label">最近のワークスペース</h3>
+        <h3 class="section-label">{{ $t('home.recentWorkspaces') }}</h3>
         <div class="history-grid">
           <div
             v-for="item in projectHistory"
@@ -29,7 +35,7 @@
               <button
                 class="history-remove"
                 @click.stop="handleRemoveHistory(item.path)"
-                title="履歴から削除"
+                title="Remove from history"
               >
                 &times;
               </button>
@@ -45,21 +51,23 @@
     <div v-show="projectStore.isLoaded" class="dashboard fade-in-up">
       <header class="dashboard-header">
         <div class="header-main">
-          <h2>Dashboard</h2>
+          <h2>{{ $t('home.dashboard') }}</h2>
           <p class="project-path-display">{{ projectStore.projectPath }}</p>
         </div>
 
         <div class="dashboard-right">
-
           <!-- サイト名（別枠） -->
           <div class="site-name-card glass">
             <span class="site-label">SITE</span>
             <span class="site-name">{{ projectStore.config?.site?.name }}</span>
+            <div class="lang-switcher-mini">
+              <button @click="changeLanguage('ja')" :class="{ active: currentLocale === 'ja' }">JA</button>
+              <button @click="changeLanguage('en')" :class="{ active: currentLocale === 'en' }">EN</button>
+            </div>
           </div>
 
           <!-- ボタン群 -->
           <div class="dashboard-controls glass">
-
             <!-- 1段目: Git/エクスポート操作 -->
             <div class="action-row">
               <div v-if="showGitButtons" class="git-actions">
@@ -68,22 +76,22 @@
                   class="btn-secondary btn-sm"
                   :disabled="!gitStore.canSave || gitStore.loading.commit"
                 >
-                  {{ gitStore.loading.commit ? 'アップ中...' : '保存してアップ' }}
+                  {{ gitStore.loading.commit ? $t('home.git.saving') : $t('home.git.saveAndPush') }}
                 </button>
                 <button
                   @click="handleGitFetch"
                   class="btn-secondary btn-sm"
                   :disabled="!gitStore.canFetch || gitStore.loading.fetch"
                 >
-                  {{ gitStore.loading.fetch ? '確認中...' : '更新を確認' }}
+                  {{ gitStore.loading.fetch ? $t('home.git.checking') : $t('home.git.checkUpdate') }}
                 </button>
                 <button
                   @click="handleGitPublish"
                   class="btn-publish btn-sm"
                   :disabled="!gitStore.canPublish || gitStore.loading.merge"
-                  :title="`${gitStore.settings?.developBranch} → ${gitStore.settings?.productionBranch} へ公開`"
+                  :title="$t('home.git.publishTitle', { develop: gitStore.settings?.developBranch, production: gitStore.settings?.productionBranch })"
                 >
-                  {{ gitStore.loading.merge ? '公開中...' : '公開する' }}
+                  {{ gitStore.loading.merge ? $t('home.git.publishing') : $t('home.git.publish') }}
                 </button>
               </div>
 
@@ -92,7 +100,7 @@
                 class="btn-secondary btn-sm"
                 :disabled="gitStore.loading.export"
               >
-                {{ gitStore.loading.export ? 'エクスポート中...' : 'エクスポート' }}
+                {{ gitStore.loading.export ? $t('home.export.exporting') : $t('home.export.label') }}
               </button>
             </div>
 
@@ -104,43 +112,42 @@
                 class="btn-primary btn-sm"
                 :disabled="previewStarting"
               >
-                {{ previewStarting ? '起動中...' : 'プレビュー開始' }}
+                {{ previewStarting ? $t('home.preview.starting') : $t('home.preview.start') }}
               </button>
               <button
                 v-else
                 @click="handleStopPreview"
                 class="btn-secondary btn-sm"
               >
-                プレビュー停止
+                {{ $t('home.preview.stop') }}
               </button>
 
               <div class="divider"></div>
 
               <div class="site-link-group" :class="{ disabled: !projectStore.previewUrl }">
-                <span class="site-link-label">ローカル</span>
+                <span class="site-link-label">{{ $t('home.preview.local') }}</span>
                 <button
                   class="btn-secondary btn-sm"
                   :disabled="!projectStore.previewUrl"
                   @click="openInBrowser(projectStore.previewUrl)"
                 >
-                  ブラウザで開く ↗
+                  {{ $t('home.preview.openBrowser') }}
                 </button>
               </div>
 
               <div class="divider"></div>
 
               <div class="site-link-group" :class="{ disabled: !productionUrl }">
-                <span class="site-link-label">本番</span>
+                <span class="site-link-label">{{ $t('home.preview.production') }}</span>
                 <button
                   class="btn-secondary btn-sm"
                   :disabled="!productionUrl"
                   @click="openInBrowser(productionUrl)"
                 >
-                  ブラウザで開く ↗
+                  {{ $t('home.preview.openBrowser') }}
                 </button>
               </div>
             </div>
-
           </div>
         </div>
       </header>
@@ -161,13 +168,13 @@
                 :to="`/contents/${contentType.key}`"
                 class="btn-secondary btn-full"
               >
-                一覧
+                {{ $t('home.contents.list') }}
               </router-link>
               <router-link 
                 :to="`/edit/${contentType.key}`"
                 class="btn-primary btn-full"
               >
-                新規
+                {{ $t('home.contents.new') }}
               </router-link>
             </div>
           </div>
@@ -178,10 +185,10 @@
           <div class="content-type-card settings-card glass">
             <div class="card-content">
               <span class="content-key">SYSTEM</span>
-              <h3>サイト設定 ⚙️</h3>
-              <p>名称、SEO、SNS、基本構成</p>
+              <h3>{{ $t('home.siteSettings.title') }}</h3>
+              <p>{{ $t('home.siteSettings.description') }}</p>
               <div class="card-footer">
-                <span class="btn-primary btn-full">設定を開く</span>
+                <span class="btn-primary btn-full">{{ $t('home.siteSettings.open') }}</span>
               </div>
             </div>
           </div>
@@ -200,9 +207,22 @@ import { useRouter } from 'vue-router'
 const projectStore = useProjectStore()
 const gitStore = useGitStore()
 const router = useRouter()
+import { useI18n } from 'vue-i18n'
+const { locale, t } = useI18n()
 
 const previewStarting = ref(false)
 const projectHistory = ref([])
+
+const currentLocale = computed(() => locale.value)
+
+async function changeLanguage(lang) {
+  locale.value = lang
+  localStorage.setItem('fubako-locale', lang)
+  // Electron側にも通知
+  if (window.electronAPI.setLocale) {
+    await window.electronAPI.setLocale(lang)
+  }
+}
 
 // Gitボタンの表示条件
 const showGitButtons = computed(() => gitStore.isGitEnabled)
@@ -242,7 +262,7 @@ async function handleRemoveHistory(projectPath) {
 function formatDate(isoString) {
   if (!isoString) return ''
   const date = new Date(isoString)
-  return date.toLocaleDateString('ja-JP', {
+  return date.toLocaleDateString(locale.value === 'ja' ? 'ja-JP' : 'en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
@@ -288,22 +308,22 @@ async function handleGitSave() {
       if (result.warning === 'gitignore_images') {
         const count = result.ignoredFiles?.length || 0
         projectStore.notify(
-          `画像ファイル ${count} 件が .gitignore により除外されています。プロジェクトの .gitignore から static/uploads/ の除外設定を削除してください。`,
+          t('home.gitIgnoreWarning', { count }),
           'warning'
         )
       }
       const pushResult = await gitStore.push(projectStore.projectPath)
       if (pushResult.success) {
-        projectStore.notify('Gitに保存・プッシュしました', 'success')
+        projectStore.notify(t('git.saveSuccess'), 'success')
       } else {
-        projectStore.notify('保存しましたがプッシュに失敗しました: ' + pushResult.error, 'warning')
+        projectStore.notify(t('git.savePushFailed', { error: pushResult.error }), 'warning')
       }
     } else {
-      projectStore.notify('保存に失敗しました: ' + result.error, 'error')
+      projectStore.notify(t('git.saveFailed', { error: result.error }), 'error')
     }
   } catch (error) {
     console.error('Git save error:', error)
-    projectStore.notify('保存エラー', 'error')
+    projectStore.notify(t('git.saveError'), 'error')
   }
 }
 
@@ -312,35 +332,35 @@ async function handleGitFetch() {
     const result = await gitStore.fetch(projectStore.projectPath)
     if (result.success) {
       if (gitStore.hasRemoteUpdates) {
-        projectStore.notify('リモートに更新があります', 'info')
+        projectStore.notify(t('git.remoteUpdate'), 'info')
       } else {
-        projectStore.notify('更新はありません', 'success')
+        projectStore.notify(t('git.noUpdate'), 'success')
       }
     } else {
-      projectStore.notify('更新に失敗しました: ' + result.error, 'error')
+      projectStore.notify(t('git.updateFailed', { error: result.error }), 'error')
     }
   } catch (error) {
     console.error('Git fetch error:', error)
-    projectStore.notify('更新に失敗しました', 'error')
+    projectStore.notify(t('git.updateFailed', { error: error.message }), 'error')
   }
 }
 
 async function handleGitPublish() {
   const developBranch = gitStore.settings?.developBranch || 'develop'
   const productionBranch = gitStore.settings?.productionBranch || 'main'
-  const confirmed = window.confirm(`「${developBranch}」ブランチを「${productionBranch}」ブランチへ公開します。\nよろしいですか？`)
+  const confirmed = window.confirm(t('git.publishConfirm', { develop: developBranch, production: productionBranch }))
   if (!confirmed) return
 
   try {
     const result = await gitStore.mergeToProduction(projectStore.projectPath)
     if (result.success) {
-      projectStore.notify('本番環境へ公開しました', 'success')
+      projectStore.notify(t('git.publishSuccess'), 'success')
     } else {
-      projectStore.notify('公開に失敗しました: ' + result.error, 'error')
+      projectStore.notify(t('git.publishFailed', { error: result.error }), 'error')
     }
   } catch (error) {
     console.error('Publish error:', error)
-    projectStore.notify('公開に失敗しました', 'error')
+    projectStore.notify(t('git.publishFailed', { error: error.message }), 'error')
   }
 }
 
@@ -379,6 +399,40 @@ async function handleExport() {
   text-align: left;
   border-left: 2px solid var(--color-primary);
   padding-left: 2rem;
+  position: relative;
+}
+
+.hero-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.lang-switcher, .lang-switcher-mini {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.lang-switcher button, .lang-switcher-mini button {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-dark);
+  font-size: 0.7rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.lang-switcher button.active, .lang-switcher-mini button.active {
+  background: var(--color-primary);
+  color: var(--color-charcoal-deep);
+  border-color: var(--color-primary);
+}
+
+.lang-switcher-mini {
+  margin-left: auto;
 }
 
 .version-tag {
