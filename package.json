@@ -7,7 +7,43 @@
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dist": "npm run build && electron-builder"
+  },
+  "build": {
+    "appId": "com.iwabuchi404.fubako",
+    "productName": "Fubako",
+    "directories": {
+      "output": "dist_electron"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "src/locales/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/node_modules/sharp/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "@iarna/toml": "^2.2.5",
@@ -20,6 +56,7 @@
     "sharp": "^0.34.5",
     "uuid": "^13.0.0",
     "vue": "^3.5.24",
+    "vue-i18n": "^9.14.5",
     "vue-router": "^4.6.3"
   },
   "devDependencies": {

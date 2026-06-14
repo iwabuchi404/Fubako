@@ -59,4 +59,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     githubAuthPoll: (deviceCode) => ipcRenderer.invoke('github-auth-poll', { deviceCode }),
     githubAuthStatus: () => ipcRenderer.invoke('github-auth-status'),
     githubAuthClear: () => ipcRenderer.invoke('github-auth-clear'),
+
+    // 言語設定
+    getLocale: () => ipcRenderer.invoke('get-locale'),
+    setLocale: (locale) => ipcRenderer.invoke('set-locale', locale),
 });

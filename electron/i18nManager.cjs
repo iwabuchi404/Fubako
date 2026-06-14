@@ -9,9 +9,25 @@ class I18nManager {
     }
 
     loadLocales() {
-        // Rendererプロセスのソースディレクトリにあるlocaleファイルを読み込む
         // electron/ フォルダから見て ../src/locales/
-        const localesDir = path.join(__dirname, '../src/locales');
+        // パッケージ化後は app.getAppPath() からの相対パスが確実
+        let localesDir;
+        try {
+            const { app } = require('electron');
+            if (app && app.isReady()) {
+                localesDir = path.join(app.getAppPath(), 'src/locales');
+            } else {
+                localesDir = path.join(__dirname, '../src/locales');
+            }
+        } catch (e) {
+            localesDir = path.join(__dirname, '../src/locales');
+        }
+
+        if (!fs.existsSync(localesDir)) {
+            console.error(`[i18n] Locales directory not found at: ${localesDir}`);
+            return;
+        }
+
         const files = fs.readdirSync(localesDir);
 
         files.forEach(file => {

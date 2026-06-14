@@ -3,7 +3,7 @@
     <header v-if="projectStore.isLoaded" class="app-header">
       <h1>{{ projectStore.config?.site?.name || 'Fubako' }}</h1>
       <nav class="main-nav">
-        <router-link to="/">ダッシュボード</router-link>
+        <router-link to="/">{{ $t('nav.dashboard') }}</router-link>
         <router-link
           v-for="contentType in projectStore.contentTypes"
           :key="contentType.key"
@@ -11,20 +11,20 @@
         >
           {{ contentType.label }}
         </router-link>
-        <router-link to="/settings">設定</router-link>
+        <router-link to="/settings">{{ $t('nav.settings') }}</router-link>
         <router-link
           to="/git-settings"
           class="nav-git-link"
           :class="{ 'git-enabled': gitStore.isGitEnabled }"
         >
-          Git
+          {{ $t('nav.git') }}
         </router-link>
         <router-link
           to="/error"
           class="nav-error-link"
           :class="{ 'has-error': errorStore.activeErrorCount > 0 }"
         >
-          エラー
+          {{ $t('nav.error') }}
           <span v-if="errorStore.activeErrorCount > 0" class="error-badge">
             {{ errorStore.activeErrorCount }}
           </span>
