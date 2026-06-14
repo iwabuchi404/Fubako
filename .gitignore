@@ -23,7 +23,7 @@ dist-ssr
 *.sw?
 
 # Electron
-dist-electron
+dist_electron
 out
 *.exe
 *.dmg
