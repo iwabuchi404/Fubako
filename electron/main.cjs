@@ -667,6 +667,47 @@ ipcMain.handle('git-fetch', async (event, projectPath) => {
   }
 });
 
+ipcMain.handle('git-pull', async (event, { projectPath, branch }) => {
+  try {
+    const token = githubAuth.loadToken();
+    const result = await gitManager.pull(projectPath, branch, token);
+    return result;
+  } catch (error) {
+    console.error('Failed to pull:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-resolve-conflict', async (event, { projectPath, branch, file, side }) => {
+  try {
+    const result = await gitManager.resolveConflict(projectPath, branch, file, side);
+    return result;
+  } catch (error) {
+    console.error('Failed to resolve conflict:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-complete-merge', async (event, projectPath) => {
+  try {
+    const result = await gitManager.completeMerge(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to complete merge:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('git-abort-merge', async (event, projectPath) => {
+  try {
+    const result = await gitManager.abortMerge(projectPath);
+    return result;
+  } catch (error) {
+    console.error('Failed to abort merge:', error);
+    return { success: false, error: error.message };
+  }
+});
+
 ipcMain.handle('git-merge-to-production', async (event, { projectPath, developBranch, productionBranch }) => {
   try {
     const token = githubAuth.loadToken();
@@ -697,26 +738,6 @@ ipcMain.handle('git-export-dist', async (event, projectPath) => {
     return result;
   } catch (error) {
     console.error('Failed to export dist:', error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('git-resolve-conflict-local', async (event, { projectPath, filePath }) => {
-  try {
-    const result = await gitManager.resolveConflictLocal(projectPath, filePath);
-    return result;
-  } catch (error) {
-    console.error('Failed to resolve conflict (local):', error);
-    return { success: false, error: error.message };
-  }
-});
-
-ipcMain.handle('git-resolve-conflict-remote', async (event, { projectPath, filePath }) => {
-  try {
-    const result = await gitManager.resolveConflictRemote(projectPath, filePath);
-    return result;
-  } catch (error) {
-    console.error('Failed to resolve conflict (remote):', error);
     return { success: false, error: error.message };
   }
 });

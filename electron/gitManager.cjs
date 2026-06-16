@@ -345,30 +345,71 @@ async function fetch(projectPath, token = null) {
 }
 
 /**
- * 開発ブランチから本番ブランチへマージ
+ * 開発ブランチから本番ブランチへマージ（通常merge方式）
  * @param {string} projectPath - プロジェクトパス
  * @param {string} developBranch - 開発ブランチ名
  * @param {string} productionBranch - 本番ブランチ名
+ * @param {string|null} token - GitHubアクセストークン
  * @returns {Promise<Object>} 結果
  */
 async function mergeToProduction(projectPath, developBranch, productionBranch, token = null) {
-  try {
-    // dev ブランチの内容を直接 main へ push（checkout/merge 不要）
-    // git push origin dev:main は dev の完全な状態を main に反映する
-    // ブランチ切り替えなしで実行できるため、.github 等の欠落が起きない
-    const pushResult = await gitExec(
-      [...tokenArgs(token), 'push', '--force-with-lease', 'origin', `${developBranch}:${productionBranch}`],
-      projectPath
-    )
+  let originalBranch = null
 
+  try {
+    // 1. 元ブランチを記憶
+    const branchResult = await gitExec(['rev-parse', '--abbrev-ref', 'HEAD'], projectPath)
+    if (branchResult.success) {
+      originalBranch = branchResult.stdout.trim()
+      // detached HEAD 状態の場合は developBranch へフォールバック
+      if (!originalBranch || originalBranch === 'HEAD') {
+        originalBranch = developBranch
+      }
+    } else {
+      // 取得失敗時は developBranch へフォールバック
+      originalBranch = developBranch
+    }
+
+    // 2. fetch
+    const fetchResult = await fetch(projectPath, token)
+    if (!fetchResult.success) {
+      return { success: false, error: `公開に失敗: fetch失敗 - ${fetchResult.error}` }
+    }
+
+    // 3. checkout production
+    const checkoutResult = await checkout(projectPath, productionBranch)
+    if (!checkoutResult.success) {
+      return { success: false, error: `公開に失敗: checkout失敗 - ${checkoutResult.error}` }
+    }
+
+    // 4. merge develop
+    const mergeResult = await gitExec(['merge', developBranch], projectPath)
+    if (!mergeResult.success) {
+      // コンフリクト等で失敗した場合は merge を中止
+      await gitExec(['merge', '--abort'], projectPath).catch(() => {
+        // abort 自体の失敗は無視
+      })
+      return { success: false, error: `公開に失敗: merge失敗 - ${mergeResult.error}` }
+    }
+
+    // 5. push origin production
+    const pushResult = await push(projectPath, productionBranch, 'origin', token)
     if (!pushResult.success) {
-      return { success: false, error: `公開に失敗: ${pushResult.error}` }
+      return { success: false, error: `公開に失敗: push失敗 - ${pushResult.error}` }
     }
 
     return { success: true }
   } catch (error) {
     console.error('[GitManager] mergeToProduction error:', error)
-    return { success: false, error: error.error || error.message }
+    return { success: false, error: `公開に失敗: ${error.error || error.message}` }
+  } finally {
+    // 6. 元ブランチへ復帰（必ず実行）
+    if (originalBranch) {
+      try {
+        await checkout(projectPath, originalBranch)
+      } catch (err) {
+        console.error('[GitManager] Failed to restore original branch:', err)
+      }
+    }
   }
 }
 
@@ -511,39 +552,157 @@ async function loadGitConfig(projectPath) {
 }
 
 /**
- * コンフリクトのあるファイルを解消（手元優先）
+ * プル（同期）
  * @param {string} projectPath - プロジェクトパス
- * @param {string} filePath - ファイルパス
+ * @param {string} branch - ブランチ名
+ * @param {string|null} token - GitHubアクセストークン
  * @returns {Promise<Object>} 結果
  */
-async function resolveConflictLocal(projectPath, filePath) {
+async function pull(projectPath, branch, token = null) {
   try {
-    // 手元のバージョンを採用
-    await gitExec(['checkout', '--ours', filePath], projectPath)
-    await gitExec(['add', filePath], projectPath)
+    // 1. fetch
+    const fetchResult = await fetch(projectPath, token)
+    if (!fetchResult.success) {
+      return { success: false, error: `同期に失敗: fetch失敗 - ${fetchResult.error}` }
+    }
+
+    // 2. behind/ahead カウント取得
+    // rev-list --left-right --count origin/branch...HEAD
+    // 出力: "<behind>\t<ahead>" (behind=remote側コミット数, ahead=local側コミット数)
+    const revListResult = await gitExec(['rev-list', '--left-right', '--count', `origin/${branch}...HEAD`], projectPath)
+    if (!revListResult.success) {
+      // リモートブランチが存在しない場合など
+      return { success: true, upToDate: true, warning: 'リモートブランチが存在しません' }
+    }
+
+    const parts = revListResult.stdout.trim().split('\t')
+    const behind = parts[0] ? parseInt(parts[0], 10) : 0
+    const ahead = parts[1] ? parseInt(parts[1], 10) : 0
+
+    // 3. 分岐判定
+    if (behind === 0) {
+      // ローカルが最新または先行している場合
+      return { success: true, upToDate: true }
+    }
+
+    if (ahead === 0) {
+      // リモートのみが進んでいる → fast-forward可能
+      const ffResult = await gitExec(['merge', '--ff-only', `origin/${branch}`], projectPath)
+      if (!ffResult.success) {
+        return { success: false, error: `同期に失敗: fast-forward merge失敗 - ${ffResult.error}` }
+      }
+      return { success: true, fastForwarded: true }
+    }
+
+    // ここから先は behind>0 && ahead>0（分岐状態）
+
+    // 4. merge-base を取得
+    const baseResult = await gitExec(['merge-base', branch, `origin/${branch}`], projectPath)
+    if (!baseResult.success) {
+      return { success: false, error: `同期に失敗: merge-base取得失敗 - ${baseResult.error}` }
+    }
+    const base = baseResult.stdout.trim()
+
+    // 5. 変更ファイルを取得
+    const localFilesResult = await gitExec(['diff', '--name-only', `${base}..HEAD`], projectPath)
+    const remoteFilesResult = await gitExec(['diff', '--name-only', `${base}..origin/${branch}`], projectPath)
+
+    const localFiles = localFilesResult.success ? localFilesResult.stdout.trim().split('\n').filter(Boolean) : []
+    const remoteFiles = remoteFilesResult.success ? remoteFilesResult.stdout.trim().split('\n').filter(Boolean) : []
+
+    // 6. コンフリクトファイルを検出（両側で変更されたファイル）
+    const conflictFiles = localFiles.filter(f => remoteFiles.includes(f))
+
+    if (conflictFiles.length === 0) {
+      // 別ファイルのみの変更 → 安全にマージ
+      const mergeResult = await gitExec(['merge', `origin/${branch}`], projectPath)
+      if (!mergeResult.success) {
+        // マージ失敗時は中止
+        await gitExec(['merge', '--abort'], projectPath).catch(() => {})
+        return { success: false, error: `同期に失敗: merge失敗 - ${mergeResult.error}` }
+      }
+      return { success: true, merged: true }
+    }
+
+    // 7. コンフリクトがある場合 --no-commit --no-ff でマージ開始
+    const mergeNoCommitResult = await gitExec(['merge', '--no-commit', '--no-ff', `origin/${branch}`], projectPath)
+    if (!mergeNoCommitResult.success) {
+      // マージ開始失敗時は中止
+      await gitExec(['merge', '--abort'], projectPath).catch(() => {})
+      return { success: false, error: `同期に失敗: merge開始失敗 - ${mergeNoCommitResult.error}` }
+    }
+
+    // マージ状態を保持したまま返す（abortしない）
+    return { success: true, isConflict: true, conflictFiles }
+
+  } catch (error) {
+    console.error('[GitManager] pull error:', error)
+    // エラー時はマージ状態をクリーンアップ
+    await gitExec(['merge', '--abort'], projectPath).catch(() => {})
+    return { success: false, error: `同期に失敗: ${error.error || error.message}` }
+  }
+}
+
+/**
+ * コンフリクト解決（統合関数）
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} branch - ブランチ名
+ * @param {string} file - ファイルパス
+ * @param {string} side - 'local' または 'remote'
+ * @returns {Promise<Object>} 結果
+ */
+async function resolveConflict(projectPath, branch, file, side) {
+  try {
+    if (side === 'local') {
+      // マージ前のローカル版（HEAD）で上書き
+      await gitExec(['checkout', 'HEAD', '--', file], projectPath)
+    } else if (side === 'remote') {
+      // リモート版で上書き
+      await gitExec(['checkout', `origin/${branch}`, '--', file], projectPath)
+    } else {
+      return { success: false, error: `無効なside指定: ${side}` }
+    }
+
+    // ステージングに追加
+    await gitExec(['add', file], projectPath)
 
     return { success: true }
   } catch (error) {
-    console.error('[GitManager] resolveConflictLocal error:', error)
+    console.error('[GitManager] resolveConflict error:', error)
     return { success: false, error: error.error || error.message }
   }
 }
 
 /**
- * コンフリクトのあるファイルを解消（リモート優先）
+ * マージを完了（コミット）
  * @param {string} projectPath - プロジェクトパス
- * @param {string} filePath - ファイルパス
  * @returns {Promise<Object>} 結果
  */
-async function resolveConflictRemote(projectPath, filePath) {
+async function completeMerge(projectPath) {
   try {
-    // リモートのバージョンを採用
-    await gitExec(['checkout', '--theirs', filePath], projectPath)
-    await gitExec(['add', filePath], projectPath)
-
+    const result = await gitExec(['commit', '--no-edit'], projectPath)
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
     return { success: true }
   } catch (error) {
-    console.error('[GitManager] resolveConflictRemote error:', error)
+    console.error('[GitManager] completeMerge error:', error)
+    return { success: false, error: error.error || error.message }
+  }
+}
+
+/**
+ * マージを中止
+ * @param {string} projectPath - プロジェクトパス
+ * @returns {Promise<Object>} 結果
+ */
+async function abortMerge(projectPath) {
+  try {
+    const result = await gitExec(['merge', '--abort'], projectPath)
+    // --abort は成功しても exitCode 1 になることがあるが、マージ状態が解除されれば成功とみなす
+    return { success: true }
+  } catch (error) {
+    console.error('[GitManager] abortMerge error:', error)
     return { success: false, error: error.error || error.message }
   }
 }
@@ -638,13 +797,15 @@ module.exports = {
   commit,
   push,
   fetch,
+  pull,
   mergeToProduction,
   exportDist,
   saveGitConfig,
   loadGitConfig,
   setRemote,
   checkout,
-  resolveConflictLocal,
-  resolveConflictRemote,
+  resolveConflict,
+  completeMerge,
+  abortMerge,
   generateCIFiles
 }
