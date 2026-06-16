@@ -6,19 +6,19 @@
         <h2 class="text-glow">{{ contentTypeConfig?.label || type }}</h2>
       </div>
       <router-link :to="`/edit/${type}`" class="btn-primary">
-        <span>新規エントリ作成</span>
+        <span>{{ $t('contents.createNew') }}</span>
         <i class="icon-plus"></i>
       </router-link>
     </div>
 
     <div v-if="loading" class="loading">
-      <span>データの整合性を確認中...</span>
+      <span>{{ $t('contents.loading') }}</span>
     </div>
 
     <div v-else-if="sortedContents.length === 0" class="empty-state glass">
-      <p>このディレクトリにはまだコンテンツが存在しません。</p>
+      <p>{{ $t('contents.empty') }}</p>
       <router-link :to="`/edit/${type}`" class="btn-primary">
-        最初のエントリを作成
+        {{ $t('contents.createFirst') }}
       </router-link>
     </div>
 
@@ -58,16 +58,16 @@
               <router-link
                 :to="`/edit/${type}/${item.slug}`"
                 class="btn-edit"
-                title="編集"
+                :title="$t('contents.editBtn')"
               >
-                編集
+                {{ $t('contents.editBtn') }}
               </router-link>
               <button
                 @click="handleDelete(item.slug, item.title)"
                 class="btn-remove"
-                title="削除"
+                :title="$t('contents.deleteBtn')"
               >
-                削除
+                {{ $t('contents.deleteBtn') }}
               </button>
             </td>
           </tr>
@@ -82,17 +82,17 @@
         :disabled="currentPage === 1"
         @click="goToPage(currentPage - 1)"
       >
-        前へ
+        {{ $t('contents.prevPage') }}
       </button>
       <span class="page-info">
-        {{ currentPage }} / {{ totalPages }}（全{{ sortedContents.length }}件）
+        {{ $t('contents.pagination', { current: currentPage, total: totalPages, count: sortedContents.length }) }}
       </span>
       <button
         class="btn-page"
         :disabled="currentPage === totalPages"
         @click="goToPage(currentPage + 1)"
       >
-        次へ
+        {{ $t('contents.nextPage') }}
       </button>
     </div>
   </div>
@@ -102,10 +102,12 @@
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectStore } from '../stores/project'
+import { useI18n } from 'vue-i18n'
 import dayjs from 'dayjs'
 
 const route = useRoute()
 const projectStore = useProjectStore()
+const { t } = useI18n()
 
 const type = computed(() => route.params.type)
 const contents = computed(() => projectStore.contents[type.value] || [])
@@ -129,9 +131,7 @@ watch(type, () => {
 
 // ページ遷移時に強制リフレッシュ（キャッシュクリア）
 watch(() => route.path, (newPath, oldPath) => {
-  // コンテンツ一覧画面に戻ってきた時のみリロード
   if (newPath.startsWith('/contents/') && newPath !== oldPath) {
-    console.log('[ContentsListView] Force refreshing contents due to navigation')
     loadContents()
   }
 })
@@ -146,8 +146,8 @@ const displayColumns = computed(() => {
     return cols
   }
   return [
-    { key: 'date', label: '日付' },
-    { key: 'title', label: 'タイトル' }
+    { key: 'date', label: t('contents.defaultDateLabel') },
+    { key: 'title', label: t('contents.defaultTitleLabel') }
   ]
 })
 
@@ -256,7 +256,7 @@ async function loadContents() {
 }
 
 async function handleDelete(slug, title) {
-  if (!confirm(`「${title || slug}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+  if (!confirm(t('contents.deleteConfirm', { title: title || slug }))) {
     return
   }
 

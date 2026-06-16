@@ -1,17 +1,17 @@
 <template>
   <div class="git-settings-view fade-in-up">
     <header class="page-header">
-      <h1>Git設定</h1>
-      <p class="page-subtitle">Git連携の設定を管理します</p>
+      <h1>{{ $t('gitSettings.title') }}</h1>
+      <p class="page-subtitle">{{ $t('gitSettings.subtitle') }}</p>
     </header>
 
     <section class="settings-section glass">
-      <h2 class="section-title">基本設定</h2>
+      <h2 class="section-title">{{ $t('gitSettings.sections.basic') }}</h2>
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>Git管理を有効にする</span>
-          <span class="setting-help">Gitでバージョン管理を行う場合にチェック</span>
+          <span>{{ $t('gitSettings.enabled.label') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.enabled.help') }}</span>
         </label>
         <div class="setting-control">
           <label class="toggle">
@@ -23,37 +23,37 @@
     </section>
 
     <section v-if="localSettings.enabled" class="settings-section glass">
-      <h2 class="section-title">GitHub認証</h2>
+      <h2 class="section-title">{{ $t('gitSettings.sections.auth') }}</h2>
 
       <div class="auth-area">
         <div v-if="!authStatus.authenticated && !authFlow.active">
           <button @click="handleStartAuth" class="btn-primary" :disabled="authFlow.loading">
-            {{ authFlow.loading ? '開始中...' : 'GitHubにサインイン' }}
+            {{ authFlow.loading ? $t('gitSettings.auth.starting') : $t('gitSettings.auth.signIn') }}
           </button>
         </div>
 
         <div v-if="authFlow.active" class="device-code-box">
-          <p class="device-code-label">ブラウザで以下のコードを入力してください:</p>
+          <p class="device-code-label">{{ $t('gitSettings.auth.enterCode') }}</p>
           <div class="user-code">{{ authFlow.userCode }}</div>
           <p class="auth-hint">{{ authFlow.verificationUri }}</p>
           <p class="auth-status-text">{{ authFlow.statusText }}</p>
-          <button @click="handleCancelAuth" class="btn-secondary">キャンセル</button>
+          <button @click="handleCancelAuth" class="btn-secondary">{{ $t('gitSettings.auth.cancel') }}</button>
         </div>
 
         <div v-if="authStatus.authenticated && !authFlow.active" class="auth-success">
-          <span class="status-value status-success">✓ GitHub認証済み</span>
-          <button @click="handleClearAuth" class="btn-secondary">サインアウト</button>
+          <span class="status-value status-success">{{ $t('gitSettings.auth.success') }}</span>
+          <button @click="handleClearAuth" class="btn-secondary">{{ $t('gitSettings.auth.signOut') }}</button>
         </div>
       </div>
     </section>
 
     <section v-if="localSettings.enabled" class="settings-section glass">
-      <h2 class="section-title">ブランチ設定</h2>
+      <h2 class="section-title">{{ $t('gitSettings.sections.branch') }}</h2>
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>開発ブランチ名</span>
-          <span class="setting-help">日々の作業で使用するブランチ</span>
+          <span>{{ $t('gitSettings.branch.develop') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.branch.developHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -67,8 +67,8 @@
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>本番ブランチ名</span>
-          <span class="setting-help">本番公開時に使用するブランチ</span>
+          <span>{{ $t('gitSettings.branch.production') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.branch.productionHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -82,8 +82,8 @@
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>リモートURL</span>
-          <span class="setting-help">GitリポジトリのURL</span>
+          <span>{{ $t('gitSettings.branch.remoteUrl') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.branch.remoteUrlHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -97,8 +97,8 @@
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>本番 base_url</span>
-          <span class="setting-help">CIビルド時の公開URL（GitHub Pages など）</span>
+          <span>{{ $t('gitSettings.branch.productionBaseUrl') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.branch.productionBaseUrlHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -107,14 +107,14 @@
             placeholder="https://username.github.io/repo"
             @change="handleSaveSettings"
           />
-          <p class="setting-note">CIで <code>zola build --base-url</code> に渡されます。設定しないと config.toml の base_url がそのまま使われます。</p>
+          <p class="setting-note">{{ $t('gitSettings.branch.productionBaseUrlNote') }}</p>
         </div>
       </div>
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>プレビューポート</span>
-          <span class="setting-help">ローカルプレビューサーバーのポート番号</span>
+          <span>{{ $t('gitSettings.branch.previewPort') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.branch.previewPortHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -125,18 +125,18 @@
             style="width: 120px;"
             @change="handleSaveSettings"
           />
-          <p class="setting-note">変更後は設定を保存してからプレビューを再起動してください。（デフォルト: 1111）</p>
+          <p class="setting-note">{{ $t('gitSettings.branch.previewPortNote') }}</p>
         </div>
       </div>
     </section>
 
     <section v-if="localSettings.enabled" class="settings-section glass">
-      <h2 class="section-title">CI設定</h2>
+      <h2 class="section-title">{{ $t('gitSettings.sections.ci') }}</h2>
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>デプロイ先</span>
-          <span class="setting-help">CIで自動デプロイする先を選択</span>
+          <span>{{ $t('gitSettings.ci.deployTarget') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.ci.deployTargetHelp') }}</span>
         </label>
         <div class="setting-control deploy-target-group">
           <label class="radio-option">
@@ -150,19 +150,19 @@
           </label>
           <label class="radio-option radio-disabled">
             <input type="radio" disabled />
-            <span>Netlify（近日対応）</span>
+            <span>{{ $t('gitSettings.ci.netlify') }}</span>
           </label>
           <label class="radio-option radio-disabled">
             <input type="radio" disabled />
-            <span>AWS Amplify（近日対応）</span>
+            <span>{{ $t('gitSettings.ci.amplify') }}</span>
           </label>
         </div>
       </div>
 
       <div class="setting-item">
         <label class="setting-label">
-          <span>Zolaバージョン</span>
-          <span class="setting-help">CIで使用するZolaのバージョン（例: 0.19.2）</span>
+          <span>{{ $t('gitSettings.ci.zolaVersion') }}</span>
+          <span class="setting-help">{{ $t('gitSettings.ci.zolaVersionHelp') }}</span>
         </label>
         <div class="setting-control">
           <input
@@ -180,10 +180,10 @@
           class="btn-primary"
           :disabled="generating || !gitStore.hasRemote"
         >
-          {{ generating ? '生成中...' : 'CIファイルを生成してpush' }}
+          {{ generating ? $t('gitSettings.ci.generating') : $t('gitSettings.ci.generate') }}
         </button>
         <p v-if="!gitStore.hasRemote" class="ci-note">
-          ※ リモートURLを設定してください
+          {{ $t('gitSettings.ci.remoteRequired') }}
         </p>
         <div v-if="generateResult" :class="['ci-result', `ci-result--${generateResult.type}`]">
           {{ generateResult.message }}
@@ -192,39 +192,39 @@
     </section>
 
     <section v-if="localSettings.enabled" class="settings-section glass">
-      <h2 class="section-title">現在の状態</h2>
+      <h2 class="section-title">{{ $t('gitSettings.sections.status') }}</h2>
 
       <div v-if="!gitStore.isRepo" class="init-container">
-        <p class="init-message">このプロジェクトはまだGitリポジトリとして初期化されていません。</p>
+        <p class="init-message">{{ $t('gitSettings.status.noRepo') }}</p>
         <button @click="handleInitRepo" class="btn-primary" :disabled="gitStore.loading.init">
-          {{ gitStore.loading.init ? '初期化中...' : 'リポジトリを初期化' }}
+          {{ gitStore.loading.init ? $t('gitSettings.status.initializing') : $t('gitSettings.status.initRepo') }}
         </button>
       </div>
 
       <div v-else class="status-grid">
         <div class="status-item">
-          <span class="status-label">リポジトリ</span>
+          <span class="status-label">{{ $t('gitSettings.status.repoLabel') }}</span>
           <span :class="['status-value', gitStore.isRepo ? 'status-success' : 'status-dim']">
-            {{ gitStore.isRepo ? '✓ 有効' : '× 無効' }}
+            {{ gitStore.isRepo ? $t('gitSettings.status.repoValid') : $t('gitSettings.status.repoInvalid') }}
           </span>
         </div>
 
         <div class="status-item">
-          <span class="status-label">現在のブランチ</span>
+          <span class="status-label">{{ $t('gitSettings.status.branchLabel') }}</span>
           <span class="status-value">
             {{ gitStore.currentBranch || '-' }}
           </span>
         </div>
 
         <div class="status-item">
-          <span class="status-label">未コミットの変更</span>
+          <span class="status-label">{{ $t('gitSettings.status.uncommittedLabel') }}</span>
           <span :class="['status-value', gitStore.hasUncommittedChanges ? 'status-warning' : 'status-success']">
-            {{ gitStore.hasUncommittedChanges ? `✓ ${gitStore.files.length}件` : '✓ なし' }}
+            {{ gitStore.hasUncommittedChanges ? $t('gitSettings.status.uncommittedHas', { count: gitStore.files.length }) : $t('gitSettings.status.uncommittedNone') }}
           </span>
         </div>
 
         <div class="status-item">
-          <span class="status-label">リモートとの同期</span>
+          <span class="status-label">{{ $t('gitSettings.status.syncLabel') }}</span>
           <span :class="['status-value', getSyncStatusClass()]">
             {{ getSyncStatusText() }}
           </span>
@@ -233,7 +233,7 @@
 
       <div v-if="gitStore.isRepo" class="refresh-button">
         <button @click="handleRefresh" class="btn-primary" :disabled="gitStore.loading.status">
-          {{ gitStore.loading.status ? '更新中...' : 'ステータスを更新' }}
+          {{ gitStore.loading.status ? $t('gitSettings.status.refreshing') : $t('gitSettings.status.refresh') }}
         </button>
       </div>
     </section>
@@ -242,9 +242,11 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/project'
 import { useGitStore } from '../stores/git'
 
+const { t } = useI18n()
 const projectStore = useProjectStore()
 const gitStore = useGitStore()
 
@@ -312,7 +314,7 @@ function handleSaveSettings() {
 }
 
 async function handleInitRepo() {
-  if (!confirm('Gitリポジトリを初期化しますか？')) return
+  if (!confirm(t('gitSettings.initConfirm'))) return
   await gitStore.initRepo(projectStore.projectPath)
 }
 
@@ -337,7 +339,7 @@ async function handleGenerateCI() {
   if (result.success) {
     generateResult.value = {
       type: 'success',
-      message: 'CIファイルを生成してpushしました。GitHubリポジトリの Settings > Pages でブランチ設定を有効にしてください。'
+      message: t('gitSettings.ci.success')
     }
     // ステータスを更新
     gitStore.getStatus(projectStore.projectPath)
@@ -356,7 +358,7 @@ async function handleStartAuth() {
   const result = await window.electronAPI.githubAuthStart()
   authFlow.value.loading = false
   if (!result.success) {
-    alert('認証開始に失敗しました: ' + result.error)
+    alert(t('gitSettings.auth.startError', { error: result.error }))
     return
   }
   authFlow.value = {
@@ -366,7 +368,7 @@ async function handleStartAuth() {
     userCode: result.user_code,
     verificationUri: result.verification_uri,
     interval: result.interval || 5,
-    statusText: '認証待機中...',
+    statusText: t('gitSettings.auth.waiting'),
     pollTimer: null
   }
   // ポーリング開始
@@ -379,7 +381,7 @@ async function handleStartAuth() {
     } else if (!r.pending) {
       clearInterval(authFlow.value.pollTimer)
       authFlow.value.active = false
-      authFlow.value.statusText = 'エラー: ' + (r.error || '不明なエラー')
+      authFlow.value.statusText = t('gitSettings.auth.pollError', { error: r.error || '?' })
     }
   }, authFlow.value.interval * 1000)
 }
@@ -397,11 +399,11 @@ async function handleClearAuth() {
 
 function getSyncStatusText() {
   if (!gitStore.isRepo) return '-'
-  if (!gitStore.hasRemote) return '× リモート未設定'
-  if (gitStore.isAheadOfRemote) return '△ 先に進んでいる'
-  if (gitStore.isBehindRemote) return '▼ 遅れている'
-  if (gitStore.hasRemoteUpdates) return '⚠ 更新があります'
-  return '✓ 同期中'
+  if (!gitStore.hasRemote) return t('gitSettings.status.noRemote')
+  if (gitStore.isAheadOfRemote) return t('gitSettings.status.ahead')
+  if (gitStore.isBehindRemote) return t('gitSettings.status.behind')
+  if (gitStore.hasRemoteUpdates) return t('gitSettings.status.hasUpdates')
+  return t('gitSettings.status.synced')
 }
 
 function getSyncStatusClass() {

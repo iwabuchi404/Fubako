@@ -1,15 +1,15 @@
 <template>
   <div class="error-history-view fade-in-up">
     <header class="page-header">
-      <h1>エラー履歴</h1>
-      <p class="page-subtitle">システムで発生したエラーを確認できます</p>
+      <h1>{{ $t('errors.title') }}</h1>
+      <p class="page-subtitle">{{ $t('errors.subtitle') }}</p>
     </header>
 
     <!-- 現在のエラー -->
     <section v-if="activeErrors.length > 0" class="error-section active">
       <h2 class="section-title">
         <span class="icon">⚠</span>
-        現在のエラー ({{ activeErrors.length }})
+        {{ $t('errors.activeErrors') }} ({{ activeErrors.length }})
       </h2>
       <div class="error-list">
         <div
@@ -31,21 +31,21 @@
 
           <!-- 詳細（アコーディオン） -->
           <div v-if="expandedErrors.has(error.id)" class="error-details-panel">
-            <!-- 日本語詳細 -->
+            <!-- 詳細 -->
             <div v-if="error.details" class="detail-section">
-              <h4>詳細</h4>
+              <h4>{{ $t('errors.detail') }}</h4>
               <p>{{ error.details }}</p>
             </div>
 
             <!-- 生のエラーメッセージ -->
             <div v-if="error.rawError" class="detail-section raw-error">
-              <h4>生のエラーメッセージ</h4>
+              <h4>{{ $t('errors.rawError') }}</h4>
               <pre>{{ error.rawError }}</pre>
             </div>
 
             <!-- アクションボタン -->
             <div v-if="error.actions && error.actions.length > 0" class="detail-section actions">
-              <h4>アクション</h4>
+              <h4>{{ $t('errors.actions') }}</h4>
               <div class="action-buttons">
                 <button
                   v-for="action in error.actions"
@@ -64,7 +64,7 @@
                 @click="dismissError(error.id)"
                 class="btn-dismiss"
               >
-                エラーを閉じる
+                {{ $t('errors.dismiss') }}
               </button>
             </div>
           </div>
@@ -76,8 +76,8 @@
     <section v-else class="error-section empty">
       <div class="empty-state">
         <div class="empty-icon">✓</div>
-        <h3>現在エラーはありません</h3>
-        <p>システムが正常に動作しています</p>
+        <h3>{{ $t('errors.noErrors') }}</h3>
+        <p>{{ $t('errors.noErrorsDesc') }}</p>
       </div>
     </section>
 
@@ -85,7 +85,7 @@
     <section v-if="resolvedErrors.length > 0" class="error-section resolved">
       <h2 class="section-title">
         <span class="icon">✓</span>
-        解消済みエラー ({{ resolvedErrors.length }})
+        {{ $t('errors.resolvedErrors') }} ({{ resolvedErrors.length }})
       </h2>
       <div class="error-list">
         <div
@@ -108,26 +108,26 @@
 
           <!-- 詳細（アコーディオン） -->
           <div v-if="expandedErrors.has(error.id)" class="error-details-panel">
-            <!-- 日本語詳細 -->
+            <!-- 詳細 -->
             <div v-if="error.details" class="detail-section">
-              <h4>詳細</h4>
+              <h4>{{ $t('errors.detail') }}</h4>
               <p>{{ error.details }}</p>
             </div>
 
             <!-- 生のエラーメッセージ -->
             <div v-if="error.rawError" class="detail-section raw-error">
-              <h4>生のエラーメッセージ</h4>
+              <h4>{{ $t('errors.rawError') }}</h4>
               <pre>{{ error.rawError }}</pre>
             </div>
 
             <!-- 解消/無視時刻 -->
             <div class="detail-section">
-              <h4>ステータス変更</h4>
+              <h4>{{ $t('errors.statusChanged') }}</h4>
               <p v-if="error.resolvedAt">
-                解消: {{ formatTime(error.resolvedAt) }}
+                {{ $t('errors.resolvedAt', { time: formatTime(error.resolvedAt) }) }}
               </p>
               <p v-if="error.dismissedAt">
-                閉じた: {{ formatTime(error.dismissedAt) }}
+                {{ $t('errors.dismissedAt', { time: formatTime(error.dismissedAt) }) }}
               </p>
             </div>
           </div>
@@ -139,8 +139,10 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { useErrorStore } from '../stores/error'
 
+const { t, locale } = useI18n()
 const errorStore = useErrorStore()
 const expandedErrors = ref(new Set())
 
@@ -167,27 +169,27 @@ function handleAction(error, action) {
 }
 
 function errorTypeLabel(type) {
-  const labels = {
-    'build-error': 'ビルドエラー',
-    'path-collision': 'パス衝突',
-    'process-exit': 'プロセスエラー',
-    'validation-error': 'バリデーション',
-    'unknown': 'エラー'
+  const keyMap = {
+    'build-error': 'errors.types.buildError',
+    'path-collision': 'errors.types.pathCollision',
+    'process-exit': 'errors.types.processError',
+    'validation-error': 'errors.types.validationError',
+    'unknown': 'errors.types.unknown'
   }
-  return labels[type] || labels['unknown']
+  return t(keyMap[type] || keyMap['unknown'])
 }
 
 function errorStatusLabel(status) {
-  const labels = {
-    'dismissed': '閉じた',
-    'resolved': '解消済み'
+  const keyMap = {
+    'dismissed': 'errors.status.dismissed',
+    'resolved': 'errors.status.resolved'
   }
-  return labels[status] || status
+  return keyMap[status] ? t(keyMap[status]) : status
 }
 
 function formatTime(isoString) {
   const date = new Date(isoString)
-  return date.toLocaleString('ja-JP', {
+  return date.toLocaleString(locale.value === 'ja' ? 'ja-JP' : 'en-US', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',

@@ -22,6 +22,7 @@ export const useGitStore = defineStore('git', () => {
     commit: false,
     push: false,
     fetch: false,
+    pull: false,
     merge: false,
     export: false,
     init: false
@@ -212,6 +213,27 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /**
+   * プル（同期）
+   */
+  async function pull(projectPath) {
+    if (!projectPath || !currentBranch.value) return
+
+    loading.value.pull = true
+    try {
+      const result = await window.electronAPI.gitPull(projectPath, currentBranch.value)
+      if (result.success) {
+        await getStatus(projectPath)
+      }
+      return result
+    } catch (error) {
+      console.error('Failed to pull:', error)
+      return { success: false, error: error.message }
+    } finally {
+      loading.value.pull = false
+    }
+  }
+
+  /**
    * フェッチ
    */
   async function fetch(projectPath) {
@@ -277,12 +299,15 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /**
-   * コンフリクト解消（手元優先）
+   * コンフリクト解決
+   * @param {string} projectPath - プロジェクトパス
+   * @param {string} file - ファイルパス
+   * @param {string} side - 'local' または 'remote'
    */
-  async function resolveConflictLocal(projectPath, filePath) {
-    if (!projectPath) return
+  async function resolveConflict(projectPath, file, side) {
+    if (!projectPath || !currentBranch.value) return
 
-    const result = await window.electronAPI.gitResolveConflictLocal(projectPath, filePath)
+    const result = await window.electronAPI.gitResolveConflict(projectPath, currentBranch.value, file, side)
     if (result.success) {
       await getStatus(projectPath)
     }
@@ -290,12 +315,25 @@ export const useGitStore = defineStore('git', () => {
   }
 
   /**
-   * コンフリクト解消（リモート優先）
+   * マージを完了
    */
-  async function resolveConflictRemote(projectPath, filePath) {
+  async function completeMerge(projectPath) {
     if (!projectPath) return
 
-    const result = await window.electronAPI.gitResolveConflictRemote(projectPath, filePath)
+    const result = await window.electronAPI.gitCompleteMerge(projectPath)
+    if (result.success) {
+      await getStatus(projectPath)
+    }
+    return result
+  }
+
+  /**
+   * マージを中止
+   */
+  async function abortMerge(projectPath) {
+    if (!projectPath) return
+
+    const result = await window.electronAPI.gitAbortMerge(projectPath)
     if (result.success) {
       await getStatus(projectPath)
     }
@@ -391,10 +429,12 @@ export const useGitStore = defineStore('git', () => {
     commit,
     push,
     fetch,
+    pull,
     mergeToProduction,
     exportDist,
-    resolveConflictLocal,
-    resolveConflictRemote,
+    resolveConflict,
+    completeMerge,
+    abortMerge,
     startAutoFetch,
     stopAutoFetch,
     startFileChangeWatch

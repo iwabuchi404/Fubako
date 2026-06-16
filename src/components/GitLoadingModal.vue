@@ -17,7 +17,7 @@ const gitStore = useGitStore()
 // モーダルを表示するかどうか
 const isActive = computed(() => {
   const l = gitStore.loading
-  return l.init || l.commit || l.push || l.fetch || l.merge || l.export
+  return l.init || l.commit || l.push || l.fetch || l.pull || l.merge || l.export
 })
 
 // 現在のアクションに応じたタイトル
@@ -27,6 +27,7 @@ const currentActionTitle = computed(() => {
   if (l.commit) return 'コミット中'
   if (l.push) return 'プッシュ中'
   if (l.fetch) return '更新を確認中'
+  if (l.pull) return '同期中'
   if (l.merge) return '本番公開中'
   if (l.export) return 'エクスポート中'
   return '処理中...'
@@ -35,7 +36,7 @@ const currentActionTitle = computed(() => {
 // 現在のアクションに応じたメッセージ
 const currentActionMessage = computed(() => {
   const l = gitStore.loading
-  if (l.push || l.merge) {
+  if (l.push || l.pull || l.merge) {
     return 'GitHubに接続しています。認証画面が表示された場合はログインしてください...'
   }
   return 'しばらくお待ちください...'

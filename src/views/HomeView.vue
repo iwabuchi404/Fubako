@@ -152,6 +152,54 @@
         </div>
       </header>
 
+      <!-- コンフリクト解決パネル -->
+      <div v-if="showConflictPanel" class="conflict-panel glass fade-in-up">
+        <h3 class="conflict-title">{{ $t('git.conflictTitle') }}</h3>
+        <p class="conflict-description">{{ $t('git.conflictDescription') }}</p>
+
+        <div class="conflict-files-list">
+          <div
+            v-for="file in conflictFiles"
+            :key="file"
+            class="conflict-file-item"
+          >
+            <span class="conflict-file-path">{{ file }}</span>
+            <div class="conflict-file-actions">
+              <button
+                @click="handleResolveConflict(file, 'local')"
+                class="btn-conflict"
+                :class="{ selected: conflictResolutions[file] === 'local' }"
+              >
+                {{ $t('git.keepLocal') }}
+              </button>
+              <button
+                @click="handleResolveConflict(file, 'remote')"
+                class="btn-conflict"
+                :class="{ selected: conflictResolutions[file] === 'remote' }"
+              >
+                {{ $t('git.keepRemote') }}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="conflict-footer">
+          <button
+            @click="handleAbortMerge"
+            class="btn-secondary"
+          >
+            {{ $t('git.cancelMerge') }}
+          </button>
+          <button
+            @click="handleCompleteMerge"
+            class="btn-primary"
+            :disabled="!isAllConflictsResolved"
+          >
+            {{ $t('git.completeMerge') }}
+          </button>
+        </div>
+      </div>
+
       <div class="content-types-grid">
         <div 
           v-for="contentType in projectStore.contentTypes" 
@@ -213,7 +261,18 @@ const { locale, t } = useI18n()
 const previewStarting = ref(false)
 const projectHistory = ref([])
 
+// コンフリクト解決パネルの状態
+const showConflictPanel = ref(false)
+const conflictFiles = ref([])
+const conflictResolutions = ref({}) // { file: 'local' | 'remote' }
+
 const currentLocale = computed(() => locale.value)
+
+// 全てのコンフリクトが解決されたかどうか
+const isAllConflictsResolved = computed(() => {
+  return conflictFiles.value.length > 0 &&
+    conflictFiles.value.every(file => conflictResolutions.value[file])
+})
 
 async function changeLanguage(lang) {
   locale.value = lang
@@ -329,19 +388,24 @@ async function handleGitSave() {
 
 async function handleGitFetch() {
   try {
-    const result = await gitStore.fetch(projectStore.projectPath)
+    const result = await gitStore.pull(projectStore.projectPath)
     if (result.success) {
-      if (gitStore.hasRemoteUpdates) {
-        projectStore.notify(t('git.remoteUpdate'), 'info')
-      } else {
-        projectStore.notify(t('git.noUpdate'), 'success')
+      if (result.isConflict) {
+        // コンフリクト発生: パネルを表示
+        conflictFiles.value = result.conflictFiles || []
+        conflictResolutions.value = {}
+        showConflictPanel.value = true
+      } else if (result.upToDate) {
+        projectStore.notify(t('git.syncUpToDate'), 'info')
+      } else if (result.fastForwarded || result.merged) {
+        projectStore.notify(t('git.syncFastForwarded'), 'success')
       }
     } else {
-      projectStore.notify(t('git.updateFailed', { error: result.error }), 'error')
+      projectStore.notify(t('git.syncFailed', { error: result.error }), 'error')
     }
   } catch (error) {
-    console.error('Git fetch error:', error)
-    projectStore.notify(t('git.updateFailed', { error: error.message }), 'error')
+    console.error('Git sync error:', error)
+    projectStore.notify(t('git.syncFailed', { error: error.message }), 'error')
   }
 }
 
@@ -375,6 +439,50 @@ async function handleExport() {
   } catch (error) {
     console.error('Export error:', error)
     projectStore.notify('エクスポートに失敗しました', 'error')
+  }
+}
+
+// コンフリクト解決: ローカルまたはリモートを選択
+async function handleResolveConflict(file, side) {
+  try {
+    const result = await gitStore.resolveConflict(projectStore.projectPath, file, side)
+    if (result.success) {
+      conflictResolutions.value[file] = side
+    }
+  } catch (error) {
+    console.error('Resolve conflict error:', error)
+  }
+}
+
+// マージを完了
+async function handleCompleteMerge() {
+  try {
+    const result = await gitStore.completeMerge(projectStore.projectPath)
+    if (result.success) {
+      showConflictPanel.value = false
+      conflictFiles.value = []
+      conflictResolutions.value = {}
+      projectStore.notify(t('git.conflictResolved'), 'success')
+    } else {
+      projectStore.notify(t('git.syncFailed', { error: result.error }), 'error')
+    }
+  } catch (error) {
+    console.error('Complete merge error:', error)
+    projectStore.notify(t('git.syncFailed', { error: error.message }), 'error')
+  }
+}
+
+// マージを中止
+async function handleAbortMerge() {
+  try {
+    const result = await gitStore.abortMerge(projectStore.projectPath)
+    if (result.success) {
+      showConflictPanel.value = false
+      conflictFiles.value = []
+      conflictResolutions.value = {}
+    }
+  } catch (error) {
+    console.error('Abort merge error:', error)
   }
 }
 </script>
@@ -767,5 +875,92 @@ async function handleExport() {
 .settings-card:hover {
   background: var(--color-charcoal-muted);
   border-color: var(--color-primary);
+}
+
+/* --- コンフリクト解決パネル --- */
+.conflict-panel {
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  background: var(--color-charcoal-main);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+}
+
+.conflict-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  margin: 0 0 0.5rem 0;
+}
+
+.conflict-description {
+  color: var(--color-text-dim);
+  font-size: 0.9rem;
+  margin: 0 0 1.5rem 0;
+  line-height: 1.5;
+}
+
+.conflict-files-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.conflict-file-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: var(--color-charcoal-light);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+
+.conflict-file-path {
+  font-size: 0.85rem;
+  color: var(--color-text-main);
+  font-family: var(--font-mono);
+  word-break: break-all;
+}
+
+.conflict-file-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.btn-conflict {
+  flex: 1;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  background: var(--color-charcoal-main);
+  border: 1px solid var(--glass-border);
+  color: var(--color-text-main);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-conflict:hover {
+  border-color: var(--color-primary);
+  background: var(--color-charcoal-muted);
+}
+
+.btn-conflict.selected {
+  background: var(--color-primary);
+  color: var(--color-charcoal-deep);
+  border-color: var(--color-primary);
+  font-weight: 600;
+}
+
+.conflict-footer {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+.conflict-footer button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

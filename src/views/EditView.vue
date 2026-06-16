@@ -75,15 +75,15 @@
                 <!-- 特注: スラグ（URL）フィールド -->
                 <div v-if="field.key === 'title'" class="field-item extra-field">
                   <label for="custom-slug">
-                    カスタムURL (slug)
+                    {{ $t('edit.customSlug') }}
                   </label>
-                  <input 
+                  <input
                     id="custom-slug"
                     v-model="formData.slug"
                     type="text"
                     placeholder="example-article-url"
                   />
-                  <p class="field-help">英数字とハイフンを推奨します。空欄の場合はファイル名が使用されます。</p>
+                  <p class="field-help">{{ $t('edit.slugHelp') }}</p>
                 </div>
                 <textarea 
                   v-else-if="field.type === 'textarea'"
@@ -99,14 +99,14 @@
                   type="date"
                   :required="field.required"
                 />
-                <select 
+                <select
                   v-else-if="field.type === 'select'"
                   :id="field.key"
                   v-model="formData[field.key]"
                   :required="field.required"
                   :disabled="projectStore.isBuildError"
                 >
-                  <option value="">Choose...</option>
+                  <option value="">{{ $t('edit.selectPlaceholder') }}</option>
                   <option v-for="opt in field.options" :key="opt" :value="opt">{{ opt }}</option>
                 </select>
                 <div v-else-if="field.type === 'image'" class="image-uploader">
@@ -124,6 +124,57 @@
                     <input v-model="formData[field.key]" type="checkbox" :disabled="projectStore.isBuildError" />
                     <span class="slider"></span>
                   </label>
+                </div>
+
+                <!-- list型: テキスト項目の配列 -->
+                <div v-else-if="field.type === 'list'" class="list-editor">
+                  <div
+                    v-for="(_, index) in (formData[field.key] || [])"
+                    :key="index"
+                    class="list-item-row"
+                  >
+                    <input
+                      v-model="formData[field.key][index]"
+                      type="text"
+                      :disabled="projectStore.isBuildError"
+                    />
+                    <button
+                      @click="removeListItem(field.key, index)"
+                      class="btn-icon-sm btn-remove-item"
+                      :disabled="projectStore.isBuildError"
+                      title="削除"
+                    >×</button>
+                  </div>
+                  <button
+                    @click="addListItem(field.key)"
+                    class="btn-secondary btn-sm"
+                    :disabled="projectStore.isBuildError"
+                  >{{ $t('edit.addListItem') }}</button>
+                </div>
+
+                <!-- gallery型: 画像URLの配列 -->
+                <div v-else-if="field.type === 'gallery'" class="gallery-editor">
+                  <div
+                    v-for="(imgPath, index) in (formData[field.key] || [])"
+                    :key="index"
+                    class="gallery-item"
+                  >
+                    <img
+                      v-if="imgPath"
+                      :src="projectStore.resolveImageUrl(imgPath)"
+                      class="gallery-thumb"
+                    />
+                    <div class="gallery-item-actions">
+                      <input v-model="formData[field.key][index]" type="text" readonly :disabled="projectStore.isBuildError" />
+                      <button @click="handleGalleryImageUpload(field.key, index)" class="btn-secondary btn-sm" :disabled="projectStore.isBuildError">UPLOAD</button>
+                      <button @click="removeGalleryItem(field.key, index)" class="btn-icon-sm btn-remove-item" :disabled="projectStore.isBuildError" title="削除">×</button>
+                    </div>
+                  </div>
+                  <button
+                    @click="addGalleryItem(field.key)"
+                    class="btn-secondary btn-sm"
+                    :disabled="projectStore.isBuildError"
+                  >{{ $t('edit.addGalleryItem') }}</button>
                 </div>
 
                 <p v-if="fieldErrors[field.key]" class="field-error">{{ fieldErrors[field.key] }}</p>
@@ -162,10 +213,10 @@
     <!-- Dummy Image Generator Modal -->
     <div v-if="showDummyModal" class="modal-overlay">
       <div class="modal-content glass">
-        <h3>ダミー画像生成</h3>
+        <h3>{{ $t('edit.dummyTitle') }}</h3>
         <div class="modal-body">
           <div class="field-item">
-            <label>サイズ (Width x Height)</label>
+            <label>{{ $t('edit.dummySize') }}</label>
             <div class="flex-row">
               <input v-model.number="dummyOptions.width" type="number" placeholder="Width" />
               <span>x</span>
@@ -173,17 +224,17 @@
             </div>
           </div>
           <div class="field-item">
-            <label>背景色 (Hex)</label>
+            <label>{{ $t('edit.dummyBgColor') }}</label>
             <input v-model="dummyOptions.bgColor" type="color" style="height: 40px;" />
           </div>
           <div class="field-item">
-            <label>テキスト内容</label>
+            <label>{{ $t('edit.dummyText') }}</label>
             <input v-model="dummyOptions.text" type="text" placeholder="DUMMY" />
           </div>
         </div>
         <div class="modal-footer">
-          <button @click="showDummyModal = false" class="btn-secondary">キャンセル</button>
-          <button @click="handleGenerateDummy" class="btn-primary" :disabled="saving">生成する</button>
+          <button @click="showDummyModal = false" class="btn-secondary">{{ $t('common.cancel') }}</button>
+          <button @click="handleGenerateDummy" class="btn-primary" :disabled="saving">{{ $t('edit.dummyGenerate') }}</button>
         </div>
       </div>
     </div>
@@ -191,21 +242,21 @@
     <!-- Resize Modal -->
     <div v-if="showResizeModal" class="modal-overlay">
       <div class="modal-content glass">
-        <h3>画像リサイズ</h3>
+        <h3>{{ $t('edit.resizeTitle') }}</h3>
         <div class="modal-body">
           <div class="field-item">
-            <label>リサイズ後のサイズ (Width x Height)</label>
+            <label>{{ $t('edit.resizeSize') }}</label>
             <div class="flex-row">
               <input v-model.number="resizeOptions.width" type="number" placeholder="Width" />
               <span>x</span>
               <input v-model.number="resizeOptions.height" type="number" placeholder="Height" />
             </div>
           </div>
-          <p class="field-help">縦横比（Aspect Ratio）は「カバー」モードでリサイズされます。</p>
+          <p class="field-help">{{ $t('edit.resizeHint') }}</p>
         </div>
         <div class="modal-footer">
-          <button @click="showResizeModal = false" class="btn-secondary">キャンセル</button>
-          <button @click="executeResize" class="btn-primary" :disabled="saving">リサイズ実行</button>
+          <button @click="showResizeModal = false" class="btn-secondary">{{ $t('common.cancel') }}</button>
+          <button @click="executeResize" class="btn-primary" :disabled="saving">{{ $t('edit.resizeExecute') }}</button>
         </div>
       </div>
     </div>
@@ -215,12 +266,14 @@
 <script setup>
 import { ref, reactive, computed, onMounted, toRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/project'
 import { useErrorStore } from '../stores/error'
 import PreviewPanel from '../components/PreviewPanel.vue'
 
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const projectStore = useProjectStore()
 const errorStore = useErrorStore()
 
@@ -270,23 +323,21 @@ async function handleGenerateDummy() {
     
     if (result.success) {
       formData[currentImageField.value] = result.path
-      projectStore.notify('ダミー画像を生成しました', 'success')
+      projectStore.notify(t('edit.dummySuccess'), 'success')
       showDummyModal.value = false
     } else {
-      projectStore.notify('生成に失敗しました: ' + result.error, 'error')
+      projectStore.notify(t('edit.dummyError', { error: result.error }), 'error')
     }
   } catch (error) {
-    projectStore.notify('生成エラー: ' + error.message, 'error')
+    projectStore.notify(t('edit.resizeGenericError', { error: error.message }), 'error')
   } finally {
     saving.value = false
   }
 }
 
 function handleResizeImage(fieldKey) {
-  console.log('[EditView] handleResizeImage trigger - field:', fieldKey)
   const currentPath = formData[fieldKey]
   if (!currentPath) return
-  
   currentImageField.value = fieldKey
   showResizeModal.value = true
 }
@@ -294,27 +345,24 @@ function handleResizeImage(fieldKey) {
 async function executeResize() {
   const fieldKey = currentImageField.value
   const currentPath = formData[fieldKey]
-  
+
   saving.value = true
   try {
-    console.log('[EditView] calling resizeImage IPC...')
     const result = await window.electronAPI.resizeImage({
       imagePath: currentPath,
       width: resizeOptions.width,
       height: resizeOptions.height
     })
-    console.log('[EditView] resizeImage result:', result)
     
     if (result.success) {
       formData[fieldKey] = result.path
-      projectStore.notify('リサイズ完了', 'success')
+      projectStore.notify(t('edit.resizeSuccess'), 'success')
       showResizeModal.value = false
     } else {
-      projectStore.notify('リサイズ失敗: ' + result.error, 'error')
+      projectStore.notify(t('edit.resizeError', { error: result.error }), 'error')
     }
   } catch (error) {
-    console.error('[EditView] Resize error:', error)
-    projectStore.notify('エラー: ' + error.message, 'error')
+    projectStore.notify(t('edit.resizeGenericError', { error: error.message }), 'error')
   } finally {
     saving.value = false
   }
@@ -344,44 +392,41 @@ const fields = computed(() => {
 
 const currentStatus = computed(() => {
   if (isNew.value) {
-    return { label: '新規', class: '' }
+    return { label: t('edit.statusNew'), class: '' }
   }
-  
+
   if (formData.draft) {
     return {
-      label: '📝 下書き',
+      label: '📝 ' + t('edit.statusDraft'),
       class: 'status-draft'
     }
   }
-  
+
   const publishDate = new Date(formData.date)
   const now = new Date()
-  
+
   if (publishDate > now) {
     return {
-      label: '🕐 予約投稿',
+      label: '🕐 ' + t('edit.statusScheduled'),
       class: 'status-scheduled'
     }
   }
-  
+
   return {
-    label: '✅ 公開中',
+    label: '✅ ' + t('edit.statusPublished'),
     class: 'status-published'
   }
 })
 
 async function loadContent() {
-  console.log('[EditView] Loading content...', { isNew: isNew.value, type: type.value, slug: slug.value })
-  
   if (isNew.value) {
     // 新規作成時のデフォルト値設定
-    console.log('[EditView] Creating new content with fields:', fields.value)
     fields.value.forEach(field => {
       if (field.default === 'today' && field.type === 'date') {
         formData[field.key] = new Date().toISOString().split('T')[0]
       } else if (field.default !== undefined) {
         formData[field.key] = field.default
-      } else if (field.type === 'list') {
+      } else if (field.type === 'list' || field.type === 'gallery') {
         formData[field.key] = []
       } else if (field.type === 'toggle') {
         formData[field.key] = false
@@ -391,21 +436,14 @@ async function loadContent() {
         formData[field.key] = ''
       }
     })
-    console.log('[EditView] Initialized formData:', formData)
   } else {
     try {
-      console.log('[EditView] Loading existing content...')
       const result = await projectStore.fetchContent(type.value, slug.value)
-      console.log('[EditView] Loaded content:', result)
-      
       // reactiveオブジェクトに直接代入
       Object.keys(formData).forEach(key => delete formData[key])
       Object.assign(formData, result)
-      
-      console.log('[EditView] FormData after load:', formData)
     } catch (error) {
       console.error('[EditView] Failed to load content:', error)
-      // エラーメッセージはストアから取得
     }
   }
 }
@@ -417,7 +455,7 @@ async function validateForm() {
   // 必須チェック
   fields.value.forEach(field => {
     if (field.required && !formData[field.key]) {
-      fieldErrors[field.key] = 'この項目は必須です'
+      fieldErrors[field.key] = t('settings.required')
       isValid = false
     }
   })
@@ -429,7 +467,7 @@ async function validateForm() {
     // 1. 完全一致チェック（同じファイル名が既に存在するか）
     const existsResult = await window.electronAPI.existsContent({ type: type.value, slug: saveSlug })
     if (existsResult.success && existsResult.exists) {
-      projectStore.notify('同じファイル名の記事が既に存在します。タイトルまたは日付を変更してください。', 'error')
+      projectStore.notify(t('edit.slugExists'), 'error')
       isValid = false
     }
 
@@ -440,7 +478,7 @@ async function validateForm() {
         slug: saveSlug
       })
       if (collisionResult.success && collisionResult.collision) {
-        projectStore.notify(`同じURLスラグの記事が既に存在します（${collisionResult.collidingFile}）。タイトルを変更してください。`, 'error')
+        projectStore.notify(t('edit.slugCollision', { file: collisionResult.collidingFile }), 'error')
         isValid = false
       }
     }
@@ -451,7 +489,7 @@ async function validateForm() {
 
 async function handleSave() {
   if (!(await validateForm())) {
-    projectStore.notify('入力内容を確認してください', 'error')
+    projectStore.notify(t('settings.validationError'), 'error')
     return false
   }
 
@@ -459,14 +497,12 @@ async function handleSave() {
   
   try {
     const saveSlug = slug.value || generateSlug()
-    console.log('[EditView] Saving content...', { type: type.value, slug: saveSlug })
-    console.log('[EditView] FormData to save:', toRaw(formData))
-    
+
     // スラグ衝突チェック
     if (!isNew.value) {
       const collisionCheck = await projectStore.checkSlugCollision(type.value, saveSlug, slug.value)
       if (collisionCheck.collision) {
-        projectStore.notify(`URLスラグ「${saveSlug}」が既存のファイルと衝突しています`, 'error')
+        projectStore.notify(t('edit.slugConflict', { slug: saveSlug }), 'error')
         saving.value = false
         return false
       }
@@ -529,31 +565,54 @@ function removeListItem(key, index) {
   formData[key].splice(index, 1)
 }
 
-async function handleImageUpload(key) {
-  console.log('[EditView] handleImageUpload trigger - field:', key)
+function addGalleryItem(key) {
+  if (!formData[key]) {
+    formData[key] = []
+  }
+  formData[key].push('')
+}
+
+function removeGalleryItem(key, index) {
+  formData[key].splice(index, 1)
+}
+
+async function handleGalleryImageUpload(key, index) {
   try {
     const filePath = await window.electronAPI.selectImageFile()
-    console.log('[EditView] selectImageFile result:', filePath)
+    if (!filePath) return
+    const result = await window.electronAPI.uploadImage(filePath)
+    if (result.success) {
+      formData[key][index] = result.path
+      projectStore.notify(t('edit.uploadSuccess'), 'success')
+    } else {
+      projectStore.notify(t('edit.uploadError', { error: result.error }), 'error')
+    }
+  } catch (error) {
+    projectStore.notify(t('edit.uploadFailed'), 'error')
+  }
+}
+
+async function handleImageUpload(key) {
+  try {
+    const filePath = await window.electronAPI.selectImageFile()
     if (!filePath) return
 
     const result = await window.electronAPI.uploadImage(filePath)
-    console.log('[EditView] uploadImage result:', result)
 
     if (result.success) {
       formData[key] = result.path
-      projectStore.notify('画像をアップロードしました', 'success')
+      projectStore.notify(t('edit.uploadSuccess'), 'success')
     } else {
-      projectStore.notify('アップロードに失敗しました: ' + result.error, 'error')
+      projectStore.notify(t('edit.uploadError', { error: result.error }), 'error')
     }
   } catch (error) {
-    console.error('[EditView] Upload error:', error)
-    projectStore.notify('アップロードに失敗しました', 'error')
+    projectStore.notify(t('edit.uploadFailed'), 'error')
   }
 }
 
 async function handleDelete() {
   const title = formData.title || slug.value
-  if (!confirm(`「${title}」を削除してもよろしいですか？\nこの操作は取り消せません。`)) {
+  if (!confirm(t('edit.deleteConfirm', { title }))) {
     return
   }
 
@@ -1086,6 +1145,66 @@ onMounted(async () => {
 
 .img-input-row input {
   flex: 1;
+}
+
+/* list型エディタ */
+.list-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.list-item-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.list-item-row input {
+  flex: 1;
+}
+
+.btn-remove-item {
+  flex-shrink: 0;
+  color: var(--color-error) !important;
+  border-color: rgba(255, 107, 107, 0.3) !important;
+}
+
+.btn-remove-item:hover {
+  background: rgba(255, 107, 107, 0.1) !important;
+}
+
+/* gallery型エディタ */
+.gallery-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.gallery-item {
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--color-charcoal-deep);
+}
+
+.gallery-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  display: block;
+}
+
+.gallery-item-actions {
+  display: flex;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  align-items: center;
+}
+
+.gallery-item-actions input {
+  flex: 1;
+  font-size: 0.7rem;
 }
 
 .btn-sm {
