@@ -241,7 +241,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/project'
 import { useGitStore } from '../stores/git'
@@ -371,23 +371,41 @@ async function handleStartAuth() {
     statusText: t('gitSettings.auth.waiting'),
     pollTimer: null
   }
-  // ポーリング開始
-  authFlow.value.pollTimer = setInterval(async () => {
+  scheduleAuthPoll(authFlow.value.interval)
+}
+
+function clearAuthPollTimer() {
+  if (authFlow.value.pollTimer) {
+    clearTimeout(authFlow.value.pollTimer)
+    authFlow.value.pollTimer = null
+  }
+}
+
+function scheduleAuthPoll(delaySeconds) {
+  clearAuthPollTimer()
+  authFlow.value.pollTimer = setTimeout(async () => {
+    if (!authFlow.value.active || !authFlow.value.deviceCode) return
+
     const r = await window.electronAPI.githubAuthPoll(authFlow.value.deviceCode)
     if (r.authenticated) {
-      clearInterval(authFlow.value.pollTimer)
+      clearAuthPollTimer()
       authFlow.value.active = false
       authStatus.value.authenticated = true
+    } else if (r.pending) {
+      if (r.slowDown) {
+        authFlow.value.interval = (authFlow.value.interval || delaySeconds) + 5
+      }
+      scheduleAuthPoll(authFlow.value.interval || delaySeconds)
     } else if (!r.pending) {
-      clearInterval(authFlow.value.pollTimer)
+      clearAuthPollTimer()
       authFlow.value.active = false
       authFlow.value.statusText = t('gitSettings.auth.pollError', { error: r.error || '?' })
     }
-  }, authFlow.value.interval * 1000)
+  }, delaySeconds * 1000)
 }
 
 function handleCancelAuth() {
-  if (authFlow.value.pollTimer) clearInterval(authFlow.value.pollTimer)
+  clearAuthPollTimer()
   authFlow.value.active = false
   authFlow.value.loading = false
 }
@@ -423,6 +441,10 @@ onMounted(() => {
       gitStore.getStatus(projectStore.projectPath)
     }
   }
+})
+
+onUnmounted(() => {
+  clearAuthPollTimer()
 })
 </script>
 

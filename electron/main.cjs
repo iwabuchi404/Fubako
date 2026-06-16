@@ -785,6 +785,9 @@ ipcMain.handle('github-auth-poll', async (event, { deviceCode }) => {
     if (data.error === 'authorization_pending') {
       return { success: true, authenticated: false, pending: true };
     }
+    if (data.error === 'slow_down') {
+      return { success: true, authenticated: false, pending: true, slowDown: true };
+    }
     return { success: false, error: data.error_description || data.error };
   } catch (error) {
     console.error('Failed to poll GitHub auth:', error);

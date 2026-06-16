@@ -21,7 +21,7 @@ async function gitExec(args, cwd) {
       return { success: true, stdout: result.stdout, stderr: result.stderr }
     } else {
       console.warn('[GitManager] gitExec warning:', {
-        args,
+        args: redactGitArgs(args),
         cwd,
         exitCode: result.exitCode,
         stderr: result.stderr,
@@ -37,13 +37,90 @@ async function gitExec(args, cwd) {
 }
 
 /**
- * トークンを HTTP ヘッダーとして注入する git -c オプション引数を生成
+ * Gitコマンド引数から認証情報をマスクする
+ * @param {string[]} args - Gitコマンド引数
+ * @returns {string[]} マスク済み引数
+ */
+function redactGitArgs(args) {
+  return args.map((arg) => {
+    if (typeof arg !== 'string') return arg
+    return arg
+      .replace(/(Authorization:\s*token\s+)[^\s]+/gi, '$1[REDACTED]')
+      .replace(/(Authorization:\s*Bearer\s+)[^\s]+/gi, '$1[REDACTED]')
+  })
+}
+
+/**
+ * GitHub.com HTTPS 通信に限定してトークンを HTTP ヘッダーとして注入する git -c オプション引数を生成
  * @param {string|null} token - GitHub アクセストークン
  * @returns {string[]} git コマンドの先頭に付与する引数
  */
 function tokenArgs(token) {
   if (!token) return []
-  return ['-c', `http.extraHeader=Authorization: token ${token}`]
+  return ['-c', `http.https://github.com/.extraHeader=Authorization: token ${token}`]
+}
+
+/**
+ * 指定refにファイルが存在するか確認する
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} ref - Git ref
+ * @param {string} file - ファイルパス
+ * @returns {Promise<boolean>} 存在する場合 true
+ */
+async function pathExistsInRef(projectPath, ref, file) {
+  const result = await gitExec(['ls-tree', '-r', '--name-only', ref, '--', file], projectPath)
+  if (!result.success) return false
+  return result.stdout.trim().split('\n').filter(Boolean).includes(file)
+}
+
+/**
+ * 指定refのファイル状態を作業ツリーとindexに適用する。ref側で削除済みなら削除を適用する。
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} ref - Git ref
+ * @param {string} file - ファイルパス
+ * @returns {Promise<Object>} 結果
+ */
+async function applyPathFromRef(projectPath, ref, file) {
+  const exists = await pathExistsInRef(projectPath, ref, file)
+
+  if (exists) {
+    const checkoutResult = await gitExec(['checkout', ref, '--', file], projectPath)
+    if (!checkoutResult.success) return checkoutResult
+
+    return await gitExec(['add', file], projectPath)
+  }
+
+  return await gitExec(['rm', '--ignore-unmatch', '--', file], projectPath)
+}
+
+/**
+ * Git ref が存在するか確認する
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} ref - Git ref
+ * @returns {Promise<boolean>} 存在する場合 true
+ */
+async function refExists(projectPath, ref) {
+  const result = await gitExec(['rev-parse', '--verify', ref], projectPath)
+  return result.success
+}
+
+/**
+ * リモート側とローカル側の ahead/behind 数を取得する
+ * @param {string} projectPath - プロジェクトパス
+ * @param {string} remoteRef - 比較するリモート ref
+ * @param {string} localRef - 比較するローカル ref
+ * @returns {Promise<Object>} { success, behind, ahead, error }
+ */
+async function getAheadBehind(projectPath, remoteRef, localRef) {
+  const result = await gitExec(['rev-list', '--left-right', '--count', `${remoteRef}...${localRef}`], projectPath)
+  if (!result.success) return { success: false, error: result.error }
+
+  const [behindRaw, aheadRaw] = result.stdout.trim().split('\t')
+  return {
+    success: true,
+    behind: behindRaw ? parseInt(behindRaw, 10) : 0,
+    ahead: aheadRaw ? parseInt(aheadRaw, 10) : 0
+  }
 }
 
 /**
@@ -369,19 +446,74 @@ async function mergeToProduction(projectPath, developBranch, productionBranch, t
       originalBranch = developBranch
     }
 
-    // 2. fetch
+    // 2. 公開前チェック: develop上で、未コミット変更がない状態だけ許可
+    if (originalBranch !== developBranch) {
+      return { success: false, error: `公開に失敗: 現在のブランチが ${developBranch} ではありません（現在: ${originalBranch}）` }
+    }
+
+    const statusResult = await gitExec(['status', '--porcelain', '-u'], projectPath)
+    if (!statusResult.success) {
+      return { success: false, error: `公開に失敗: 作業ツリー状態の確認に失敗 - ${statusResult.error}` }
+    }
+    if (statusResult.stdout.trim()) {
+      return { success: false, error: '公開に失敗: Gitに未保存の変更があります。先にGit保存してください。' }
+    }
+
+    // 3. fetch
     const fetchResult = await fetch(projectPath, token)
     if (!fetchResult.success) {
       return { success: false, error: `公開に失敗: fetch失敗 - ${fetchResult.error}` }
     }
 
-    // 3. checkout production
-    const checkoutResult = await checkout(projectPath, productionBranch)
+    const localDevelopRef = `refs/heads/${developBranch}`
+    const remoteDevelopRef = `refs/remotes/origin/${developBranch}`
+    const localProductionRef = `refs/heads/${productionBranch}`
+    const remoteProductionRef = `refs/remotes/origin/${productionBranch}`
+
+    const localDevelopExists = await refExists(projectPath, localDevelopRef)
+    if (!localDevelopExists) {
+      return { success: false, error: `公開に失敗: 開発ブランチ ${developBranch} が存在しません` }
+    }
+
+    const remoteDevelopExists = await refExists(projectPath, remoteDevelopRef)
+    if (!remoteDevelopExists) {
+      return { success: false, error: `公開に失敗: リモートの ${developBranch} が存在しません。先にGit保存してください。` }
+    }
+
+    const developSync = await getAheadBehind(projectPath, remoteDevelopRef, localDevelopRef)
+    if (!developSync.success) {
+      return { success: false, error: `公開に失敗: ${developBranch} の同期状態確認に失敗 - ${developSync.error}` }
+    }
+    if (developSync.behind > 0) {
+      return { success: false, error: `公開に失敗: ${developBranch} がリモートより古いです。先に更新してください。` }
+    }
+    if (developSync.ahead > 0) {
+      return { success: false, error: `公開に失敗: ${developBranch} に未pushのコミットがあります。先にGit保存してください。` }
+    }
+
+    const localProductionExists = await refExists(projectPath, localProductionRef)
+    const remoteProductionExists = await refExists(projectPath, remoteProductionRef)
+    if (!localProductionExists && !remoteProductionExists) {
+      return { success: false, error: `公開に失敗: 本番ブランチ ${productionBranch} が存在しません。先に本番ブランチを作成してください。` }
+    }
+
+    // 4. checkout production
+    let checkoutResult = await checkout(projectPath, productionBranch)
+    if (!checkoutResult.success && remoteProductionExists && !localProductionExists) {
+      checkoutResult = await gitExec(['checkout', '-b', productionBranch, '--track', `origin/${productionBranch}`], projectPath)
+    }
     if (!checkoutResult.success) {
       return { success: false, error: `公開に失敗: checkout失敗 - ${checkoutResult.error}` }
     }
 
-    // 4. merge develop
+    if (remoteProductionExists) {
+      const ffProductionResult = await gitExec(['merge', '--ff-only', `origin/${productionBranch}`], projectPath)
+      if (!ffProductionResult.success) {
+        return { success: false, error: `公開に失敗: ${productionBranch} をリモート最新へ更新できません - ${ffProductionResult.error}` }
+      }
+    }
+
+    // 5. merge develop
     const mergeResult = await gitExec(['merge', developBranch], projectPath)
     if (!mergeResult.success) {
       // コンフリクト等で失敗した場合は merge を中止
@@ -391,7 +523,7 @@ async function mergeToProduction(projectPath, developBranch, productionBranch, t
       return { success: false, error: `公開に失敗: merge失敗 - ${mergeResult.error}` }
     }
 
-    // 5. push origin production
+    // 6. push origin production
     const pushResult = await push(projectPath, productionBranch, 'origin', token)
     if (!pushResult.success) {
       return { success: false, error: `公開に失敗: push失敗 - ${pushResult.error}` }
@@ -624,12 +756,24 @@ async function pull(projectPath, branch, token = null) {
       return { success: true, merged: true }
     }
 
-    // 7. コンフリクトがある場合 --no-commit --no-ff でマージ開始
-    const mergeNoCommitResult = await gitExec(['merge', '--no-commit', '--no-ff', `origin/${branch}`], projectPath)
+    // 7. コンフリクトがある場合は通常の3-way mergeを避ける。
+    // ファイル完全書き換え原則に従い、merge commitの土台だけ作り、
+    // remoteのみの変更は取り込み、両側変更ファイルはUIで local/remote を選択させる。
+    const mergeNoCommitResult = await gitExec(['merge', '--no-commit', '--no-ff', '-s', 'ours', `origin/${branch}`], projectPath)
     if (!mergeNoCommitResult.success) {
       // マージ開始失敗時は中止
       await gitExec(['merge', '--abort'], projectPath).catch(() => {})
       return { success: false, error: `同期に失敗: merge開始失敗 - ${mergeNoCommitResult.error}` }
+    }
+
+    const localFileSet = new Set(localFiles)
+    const remoteOnlyFiles = remoteFiles.filter(f => !localFileSet.has(f))
+    for (const file of remoteOnlyFiles) {
+      const applyResult = await applyPathFromRef(projectPath, `origin/${branch}`, file)
+      if (!applyResult.success) {
+        await gitExec(['merge', '--abort'], projectPath).catch(() => {})
+        return { success: false, error: `同期に失敗: リモート変更の適用に失敗 - ${file}: ${applyResult.error}` }
+      }
     }
 
     // マージ状態を保持したまま返す（abortしない）
@@ -653,18 +797,20 @@ async function pull(projectPath, branch, token = null) {
  */
 async function resolveConflict(projectPath, branch, file, side) {
   try {
+    let result
     if (side === 'local') {
       // マージ前のローカル版（HEAD）で上書き
-      await gitExec(['checkout', 'HEAD', '--', file], projectPath)
+      result = await applyPathFromRef(projectPath, 'HEAD', file)
     } else if (side === 'remote') {
       // リモート版で上書き
-      await gitExec(['checkout', `origin/${branch}`, '--', file], projectPath)
+      result = await applyPathFromRef(projectPath, `origin/${branch}`, file)
     } else {
       return { success: false, error: `無効なside指定: ${side}` }
     }
 
-    // ステージングに追加
-    await gitExec(['add', file], projectPath)
+    if (!result.success) {
+      return { success: false, error: result.error }
+    }
 
     return { success: true }
   } catch (error) {
