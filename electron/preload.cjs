@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     removeProjectHistory: (projectPath) => ipcRenderer.invoke('remove-project-history', projectPath),
     resizeImage: (params) => ipcRenderer.invoke('resize-image', params),
     generateDummyImage: (options) => ipcRenderer.invoke('generate-dummy-image', options),
+    deleteImage: (imagePath) => ipcRenderer.invoke('delete-image', { imagePath }),
+    getImageReferences: (imagePath) => ipcRenderer.invoke('get-image-references', { imagePath }),
     getServerInfo: () => ipcRenderer.invoke('get-server-info'),
     checkSlugCollision: (params) => ipcRenderer.invoke('check-slug-collision', params),
     resolveSlugCollision: (params) => ipcRenderer.invoke('resolve-slug-collision', params),

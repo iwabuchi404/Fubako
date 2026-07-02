@@ -169,9 +169,33 @@ async function listImages(projectPath) {
     return images;
 }
 
+/**
+ * 画像を削除する
+ */
+async function deleteImage(imagePath, projectPath) {
+    console.log('[ImageManager] deleteImage start:', { imagePath, projectPath });
+    try {
+        // publicパス (/uploads/...) を絶対パスに変換
+        const absolutePath = path.join(projectPath, 'static', imagePath);
+
+        if (!fsSyncModule.existsSync(absolutePath)) {
+            throw new Error('File not found: ' + absolutePath);
+        }
+
+        await fs.unlink(absolutePath);
+        console.log('[ImageManager] deleteImage success:', imagePath);
+
+        return { success: true };
+    } catch (error) {
+        console.error('[ImageManager] deleteImage error:', error);
+        return { success: false, error: error.message };
+    }
+}
+
 module.exports = {
     uploadImage,
     resizeImage,
     generateDummyImage,
-    listImages
+    listImages,
+    deleteImage
 };

@@ -11,6 +11,7 @@
         >
           {{ contentType.label }}
         </router-link>
+        <router-link to="/media">{{ $t('nav.media') }}</router-link>
         <router-link to="/settings">{{ $t('nav.settings') }}</router-link>
         <router-link
           to="/git-settings"

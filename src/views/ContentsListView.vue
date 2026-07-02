@@ -274,9 +274,9 @@ onMounted(() => {
 
 <style scoped>
 .contents-list {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem 2.5rem;
+  width: 100%;
+  max-width: none;
+  padding: 1.5rem 2rem;
 }
 
 .header {
@@ -308,12 +308,14 @@ onMounted(() => {
 }
 
 .table-container {
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: var(--radius-lg);
 }
 
 .contents-table {
   width: 100%;
+  min-width: 960px;
   border-collapse: collapse;
 }
 

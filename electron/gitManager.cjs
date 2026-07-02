@@ -1,4 +1,4 @@
-const path = require('path')
+﻿const path = require('path')
 const fs = require('fs')
 const { exec } = require('dugite')
 
@@ -9,12 +9,13 @@ const GIT_CONFIG_FILE = 'fubako-git-config.json'
  * Gitコマンド実行ヘルパー (dugite使用)
  * @param {string[]} args - Gitコマンド引数
  * @param {string} cwd - 作業ディレクトリ
+ * @param {string} token - GitHubアクセストークン（認証が必要な場合）
  * @returns {Promise<Object>} { success, stdout, stderr, error }
  */
 async function gitExec(args, cwd) {
   try {
     const result = await exec(args, cwd, {
-      env: { ...process.env, LC_ALL: 'C' }
+      env: { ...process.env, LC_ALL: 'C', GIT_TERMINAL_PROMPT: '0', GCM_INTERACTIVE: 'never' }
     })
 
     if (result.exitCode === 0) {
@@ -27,7 +28,6 @@ async function gitExec(args, cwd) {
         stderr: result.stderr,
         stdout: result.stdout
       })
-      // Return stdout on error to capture messages like "nothing to commit"
       return { success: false, error: result.stderr || `Git exited with code ${result.exitCode}`, stdout: result.stdout, exitCode: result.exitCode }
     }
   } catch (err) {
@@ -47,6 +47,8 @@ function redactGitArgs(args) {
     return arg
       .replace(/(Authorization:\s*token\s+)[^\s]+/gi, '$1[REDACTED]')
       .replace(/(Authorization:\s*Bearer\s+)[^\s]+/gi, '$1[REDACTED]')
+      .replace(/(Authorization:\s*Basic\s+)[^\s]+/gi, '$1[REDACTED]')
+      .replace(/(x-access-token:)[^@]+@/gi, '$1[REDACTED]@')
   })
 }
 
@@ -55,10 +57,12 @@ function redactGitArgs(args) {
  * @param {string|null} token - GitHub アクセストークン
  * @returns {string[]} git コマンドの先頭に付与する引数
  */
+// tokenArgs is deprecated - auth is now handled via GIT_CONFIG_COUNT env vars in gitExec
 function tokenArgs(token) {
   if (!token) return []
-  return ['-c', `http.https://github.com/.extraHeader=Authorization: token ${token}`]
+  return []
 }
+
 
 /**
  * 指定refにファイルが存在するか確認する
@@ -215,6 +219,18 @@ async function getStatus(projectPath) {
           hasRemoteUpdates: false,
           hasRemote: false
         }
+      }
+    } else {
+      return {
+        success: true,
+        isRepo: false,
+        currentBranch: null,
+        hasUncommittedChanges: false,
+        files: [],
+        isAheadOfRemote: false,
+        isBehindRemote: false,
+        hasRemoteUpdates: false,
+        hasRemote: false
       }
     }
 
@@ -388,15 +404,27 @@ async function commit(projectPath, message) {
  */
 async function push(projectPath, branch, remote = 'origin', token = null) {
   try {
-    // 常に origin <branch> を明示してプッシュ（--set-upstream でトラッキングも更新）
-    // 引数なしの git push はトラッキング設定に依存するため、ブランチ名不一致時にエラーになる
-    const pushResult = await gitExec([...tokenArgs(token), 'push', '--set-upstream', remote, branch], projectPath)
+    if (token) {
+      const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+      const baseArgs = ['-c', 'http.extraHeader=' + extraHeader]
 
-    if (!pushResult.success) {
-      return { success: false, error: pushResult.error }
+      let pushResult
+      const trackResult = await gitExec([...baseArgs, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'], projectPath)
+      if (!trackResult.success) {
+        pushResult = await gitExec([...baseArgs, 'push', '--set-upstream', remote, branch], projectPath)
+      } else {
+        pushResult = await gitExec([...baseArgs, 'push', remote, branch], projectPath)
+      }
+
+      if (!pushResult.success) {
+        return { success: false, error: pushResult.error }
+      }
+      return { success: true }
+    } else {
+      const pushResult = await gitExec(['push', '--set-upstream', remote, branch], projectPath)
+      if (!pushResult.success) return { success: false, error: pushResult.error }
+      return { success: true }
     }
-
-    return { success: true }
   } catch (error) {
     console.error('[GitManager] push error:', error)
     return { success: false, error: error.error || error.message }
@@ -410,11 +438,20 @@ async function push(projectPath, branch, remote = 'origin', token = null) {
  */
 async function fetch(projectPath, token = null) {
   try {
-    const result = await gitExec([...tokenArgs(token), 'fetch'], projectPath)
-    if (!result.success) {
-      return { success: false, error: result.error }
+    if (token) {
+      const extraHeader = 'Authorization: Basic ' + Buffer.from('x-access-token:' + token).toString('base64')
+      const result = await gitExec(['-c', 'http.extraHeader=' + extraHeader, 'fetch'], projectPath)
+      if (!result.success) {
+        return { success: false, error: result.error }
+      }
+      return { success: true }
+    } else {
+      const result = await gitExec(['fetch'], projectPath)
+      if (!result.success) {
+        return { success: false, error: result.error }
+      }
+      return { success: true }
     }
-    return { success: true }
   } catch (error) {
     console.error('[GitManager] fetch error:', error)
     return { success: false, error: error.error || error.message }
@@ -861,7 +898,7 @@ async function abortMerge(projectPath) {
  */
 async function generateCIFiles(projectPath, deployTarget, options, token = null) {
   const {
-    productionBranch = 'main',
+    productionBranch = 'production',
     workingBranch,
     zolaVersion = '0.19.2',
     productionBaseUrl = ''
@@ -933,6 +970,26 @@ updates:
   const currentBranch = branchResult.success ? branchResult.stdout.trim() : (workingBranch || 'draft')
   const pushResult = await push(projectPath, currentBranch, 'origin', token)
   if (!pushResult.success) return pushResult
+
+  // productionブランチが存在しない場合は作成してプッシュ
+  const prodBranchResult = await gitExec(['rev-parse', '--verify', productionBranch], projectPath)
+  if (!prodBranchResult.success) {
+    // productionブランチを現在のブランチから作成
+    const createProdResult = await gitExec(['branch', productionBranch], projectPath)
+    if (!createProdResult.success) {
+      return { success: false, error: 'productionブランチの作成に失敗: ' + createProdResult.error }
+    }
+    const prodPushResult = await push(projectPath, productionBranch, 'origin', token)
+    if (!prodPushResult.success) {
+      return { success: false, error: 'productionブランチのプッシュに失敗: ' + prodPushResult.error }
+    }
+  } else {
+    // productionブランチが存在する場合はプッシュ確認
+    const prodPushResult = await push(projectPath, productionBranch, 'origin', token)
+    if (!prodPushResult.success) {
+      return { success: false, error: 'productionブランチのプッシュに失敗: ' + prodPushResult.error }
+    }
+  }
 
   return { success: true }
 }

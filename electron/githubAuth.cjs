@@ -1,4 +1,4 @@
-const { safeStorage, app } = require('electron')
+﻿const { safeStorage, app } = require('electron')
 const path = require('path')
 const fs = require('fs')
 
@@ -48,7 +48,9 @@ async function pollForToken(deviceCode) {
       grant_type: 'urn:ietf:params:oauth:grant-type:device_code'
     })
   })
-  return await response.json()
+  const data = await response.json()
+  console.log('[githubAuth] pollForToken response:', JSON.stringify({ ...data, access_token: data.access_token ? data.access_token.substring(0, 4) + '...' + data.access_token.slice(-4) : undefined }))
+  return data
 }
 
 /**
@@ -56,8 +58,10 @@ async function pollForToken(deviceCode) {
  * @param {string} token - GitHub アクセストークン
  */
 function saveToken(token) {
+  console.log('[githubAuth] saveToken: token length=' + token.length + ', starts=' + token.substring(0, 4))
   const encrypted = safeStorage.encryptString(token)
   fs.writeFileSync(getTokenFile(), encrypted)
+  console.log('[githubAuth] saveToken: saved to', getTokenFile())
 }
 
 /**
@@ -66,10 +70,15 @@ function saveToken(token) {
  */
 function loadToken() {
   const tokenFile = getTokenFile()
-  if (!fs.existsSync(tokenFile)) return null
+  if (!fs.existsSync(tokenFile)) {
+    console.warn('[githubAuth] loadToken: file not found at', tokenFile)
+    return null
+  }
   try {
     const encrypted = fs.readFileSync(tokenFile)
-    return safeStorage.decryptString(encrypted)
+    const token = safeStorage.decryptString(encrypted).trim()
+    console.log('[githubAuth] loadToken: token length=' + token.length + ', starts=' + token.substring(0, 4))
+    return token
   } catch (error) {
     console.error('[githubAuth] Failed to decrypt token:', error)
     return null

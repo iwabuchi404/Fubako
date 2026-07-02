@@ -36,7 +36,25 @@
             "checking": "確認中...",
             "publish": "公開する",
             "publishing": "公開中...",
-            "publishTitle": "{develop} → {production} へ公開"
+            "publishTitle": "{develop} → {production} へ公開",
+            "disabled": {
+                "noChanges": "保存する変更はありません",
+                "noRemote": "リモートURLが未設定です",
+                "wrongBranch": "{develop} ブランチで作業してください",
+                "uncommitted": "未保存の変更があります。先に「保存してアップ」を実行してください",
+                "ahead": "未アップロードの保存があります。先に「保存してアップ」を実行してください",
+                "behind": "リモートに更新があります。先に「更新を確認」を実行してください"
+            },
+            "publishChecks": {
+                "title": "公開前チェック",
+                "repo": "Gitリポジトリが有効",
+                "remote": "リモートURLが設定済み",
+                "branch": "{develop} ブランチで作業中",
+                "clean": "未保存の変更なし",
+                "synced": "リモートと同期済み",
+                "ready": "公開できます",
+                "blocked": "公開前に確認が必要です"
+            }
         },
         "export": {
             "label": "エクスポート",
@@ -114,6 +132,13 @@
         "validationError": "入力内容を確認してください"
     },
     "edit": {
+        "saving": "保存中...",
+        "sidePanel": "記事の補助パネル",
+        "resizePanel": "ドラッグでパネル幅を変更",
+        "tabs": {
+            "settings": "設定",
+            "preview": "プレビュー"
+        },
         "customSlug": "カスタムURL (slug)",
         "slugHelp": "英数字とハイフンを推奨します。空欄の場合はファイル名が使用されます。",
         "dummyTitle": "ダミー画像生成",
@@ -159,6 +184,37 @@
         "defaultDateLabel": "日付",
         "defaultTitleLabel": "タイトル"
     },
+    "media": {
+        "title": "メディア管理",
+        "upload": "画像をアップロード",
+        "uploading": "アップロード中...",
+        "uploadSuccess": "画像をアップロードしました",
+        "uploadError": "アップロードに失敗しました: {error}",
+        "uploadFailed": "アップロードに失敗しました",
+        "empty": "アップロードされた画像はありません",
+        "dropHint": "ここに画像をドロップしてアップロード",
+        "selectFile": "ファイルを選択",
+        "delete": "削除",
+        "deleteConfirm": "「{name}」を削除してもよろしいですか？\nこの操作は取り消せません。",
+        "deleteSuccess": "画像を削除しました",
+        "deleteError": "削除に失敗しました: {error}",
+        "copyPath": "パスをコピー",
+        "copySuccess": "パスをコピーしました",
+        "references": "使用状況",
+        "checkingReferences": "使用状況を確認中...",
+        "referencesFound": "{count}件の記事で使用されています",
+        "referencesNone": "どの記事からも参照されていません",
+        "referencesError": "使用状況の確認に失敗しました",
+        "referenceFrontmatter": "Frontmatter: {key}",
+        "referenceBody": "本文",
+        "openContent": "記事を開く",
+        "preview": "プレビュー",
+        "fileName": "ファイル名",
+        "fileSize": "サイズ",
+        "modified": "更新日",
+        "dimensions": "サイズ",
+        "unknown": "不明"
+    },
     "errors": {
         "title": "エラー履歴",
         "subtitle": "システムで発生したエラーを確認できます",
@@ -193,7 +249,16 @@
             "auth": "GitHub認証",
             "branch": "ブランチ設定",
             "ci": "CI設定",
-            "status": "現在の状態"
+            "status": "現在の状態",
+            "setup": "公開設定の流れ"
+        },
+        "setup": {
+            "auth": "GitHubにサインイン",
+            "repo": "Gitリポジトリを有効化",
+            "remote": "リモートURLを設定",
+            "ci": "CIファイルを生成",
+            "done": "完了",
+            "todo": "未完了"
         },
         "enabled": {
             "label": "Git管理を有効にする",

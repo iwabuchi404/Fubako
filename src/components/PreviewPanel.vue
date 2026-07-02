@@ -1,12 +1,12 @@
 <template>
   <section 
     class="preview-panel glass" 
-    :class="{ 'collapsed': collapsed }"
-    :style="{ width: panelWidth + 'px' }"
+    :class="{ collapsed, embedded }"
+    :style="panelStyle"
   >
     <div class="preview-header">
       <div class="header-actions-left">
-        <button @click="toggleCollapse" class="btn-icon-sm" :title="'プレビューを隠す'">
+        <button v-if="!embedded" @click="toggleCollapse" class="btn-icon-sm" :title="'プレビューを隠す'">
            ▶
         </button>
         <div class="device-selectors">
@@ -38,13 +38,13 @@
     </div>
     
     <!-- Sidebar Restore Trigger -->
-    <div v-if="collapsed" class="collapsed-bar left" @click="collapsed = false" title="レビューを表示">
+    <div v-if="collapsed && !embedded" class="collapsed-bar left" @click="collapsed = false" title="レビューを表示">
       <span>PREVIEW ◀</span>
     </div>
 
     <!-- Resize Handle -->
     <div 
-      v-if="!collapsed"
+      v-if="!collapsed && !embedded"
       class="resize-handle" 
       @mousedown="startResize"
       @touchstart="startResize"
@@ -54,13 +54,25 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useProjectStore } from '../stores/project'
 
 const props = defineProps({
   isNew: {
     type: Boolean,
     default: false
+  },
+  initialWidth: {
+    type: Number,
+    default: 400
+  },
+  embedded: {
+    type: Boolean,
+    default: false
+  },
+  previewPath: {
+    type: String,
+    default: null
   }
 })
 
@@ -69,7 +81,8 @@ const projectStore = useProjectStore()
 const previewUrl = ref(null)
 const previewMode = ref('desktop')
 const collapsed = ref(false)
-const panelWidth = ref(400)
+const panelWidth = ref(props.initialWidth)
+const panelStyle = computed(() => props.embedded ? null : { width: panelWidth.value + 'px' })
 
 // リサイズ機能
 const isDragging = ref(false)
@@ -79,11 +92,20 @@ const startWidth = ref(0)
 // プレビューURLを設定
 function updatePreviewUrl() {
   if (projectStore.previewRunning && projectStore.zolaUrl) {
-    previewUrl.value = projectStore.zolaUrl
+    const base = projectStore.zolaUrl.replace(/\/$/, '')
+    if (props.previewPath) {
+      previewUrl.value = base + props.previewPath
+    } else {
+      previewUrl.value = projectStore.zolaUrl
+    }
   } else {
     previewUrl.value = null
   }
 }
+
+watch(() => props.previewPath, () => {
+  updatePreviewUrl()
+})
 
 function toggleCollapse() {
   collapsed.value = !collapsed.value
@@ -160,6 +182,13 @@ onUnmounted(() => {
   border-left: 1px solid var(--glass-border);
 }
 
+.preview-panel.embedded {
+  width: 100%;
+  height: 100%;
+  border-left: none;
+  border-radius: 0;
+}
+
 .preview-panel.collapsed {
   width: 40px !important;
 }
@@ -189,6 +218,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  min-width: 0;
 }
 
 .device-selectors {
@@ -243,6 +273,7 @@ onUnmounted(() => {
   padding: 0.4rem 0.6rem;
   border-radius: 4px;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .btn-link:hover {

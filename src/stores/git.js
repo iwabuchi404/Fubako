@@ -16,6 +16,11 @@ export const useGitStore = defineStore('git', () => {
   const hasRemoteUpdates = ref(false)
   const hasRemote = ref(false)
 
+  const defaultSettings = {
+    developBranch: 'develop',
+    productionBranch: 'production'
+  }
+
   // ローディング状態
   const loading = ref({
     status: false,
@@ -29,10 +34,7 @@ export const useGitStore = defineStore('git', () => {
   })
 
   // 設定
-  const settings = ref({
-    developBranch: 'develop',
-    productionBranch: 'production'
-  })
+  const settings = ref({ ...defaultSettings })
 
   // 定期フェッチ用
   let fetchInterval = null
@@ -72,15 +74,18 @@ export const useGitStore = defineStore('git', () => {
    * Git設定をロード
    */
   async function loadConfig(projectPath) {
-    if (!projectPath) return
+    if (!projectPath) {
+      resetState()
+      return
+    }
 
     const result = await window.electronAPI.loadGitConfig(projectPath)
     if (result.success && result.config) {
       gitConfig.value = result.config
       isGitEnabled.value = result.config.enabled || false
       settings.value = {
-        developBranch: result.config.developBranch || 'develop',
-        productionBranch: result.config.productionBranch || 'production'
+        developBranch: result.config.developBranch || defaultSettings.developBranch,
+        productionBranch: result.config.productionBranch || defaultSettings.productionBranch
       }
 
       // Gitが有効な場合、ステータス取得と定期フェッチ開始
@@ -101,7 +106,12 @@ export const useGitStore = defineStore('git', () => {
 
         startAutoFetch(projectPath)
         startFileChangeWatch(projectPath)
+      } else {
+        stopAutoFetch()
+        stopFileChangeWatch()
       }
+    } else {
+      resetState()
     }
   }
 
@@ -113,28 +123,31 @@ export const useGitStore = defineStore('git', () => {
 
     loading.value.config = true
     try {
-      const result = await window.electronAPI.saveGitConfig(projectPath, {
+      const wasEnabled = isGitEnabled.value
+      const nextConfig = {
         ...gitConfig.value,
         ...config
+      }
+      const result = await window.electronAPI.saveGitConfig(projectPath, {
+        ...nextConfig
       })
       if (result.success) {
-        gitConfig.value = {
-          ...gitConfig.value,
-          ...config
-        }
-        isGitEnabled.value = config.enabled || false
+        gitConfig.value = nextConfig
+        isGitEnabled.value = nextConfig.enabled || false
         settings.value = {
-          developBranch: config.developBranch || 'develop',
-          productionBranch: config.productionBranch || 'production'
+          developBranch: nextConfig.developBranch || defaultSettings.developBranch,
+          productionBranch: nextConfig.productionBranch || defaultSettings.productionBranch
         }
 
         // Gitが無効になった場合、定期フェッチを停止
-        if (!config.enabled) {
+        if (!nextConfig.enabled) {
           stopAutoFetch()
-        } else if (config.enabled && !gitConfig.value?.enabled) {
+          stopFileChangeWatch()
+        } else if (nextConfig.enabled && !wasEnabled) {
           // Gitが有効になった場合、ステータス取得と定期フェッチ開始
           await getStatus(projectPath)
           startAutoFetch(projectPath)
+          startFileChangeWatch(projectPath)
         }
       }
     } catch (error) {
@@ -368,11 +381,15 @@ export const useGitStore = defineStore('git', () => {
   // ファイル変更通知の購読（Git未保存状態を即時検知）
   let unsubscribeFileWatch = null
 
-  function startFileChangeWatch(projectPath) {
+  function stopFileChangeWatch() {
     if (unsubscribeFileWatch) {
       unsubscribeFileWatch()
       unsubscribeFileWatch = null
     }
+  }
+
+  function startFileChangeWatch(projectPath) {
+    stopFileChangeWatch()
     if (!window.electronAPI?.onProjectFilesChanged) return
 
     unsubscribeFileWatch = window.electronAPI.onProjectFilesChanged(() => {
@@ -380,6 +397,26 @@ export const useGitStore = defineStore('git', () => {
         getStatus(projectPath)
       }
     })
+  }
+
+  function resetStatus() {
+    isRepo.value = false
+    currentBranch.value = null
+    hasUncommittedChanges.value = false
+    files.value = []
+    isAheadOfRemote.value = false
+    isBehindRemote.value = false
+    hasRemoteUpdates.value = false
+    hasRemote.value = false
+  }
+
+  function resetState() {
+    stopAutoFetch()
+    stopFileChangeWatch()
+    gitConfig.value = null
+    isGitEnabled.value = false
+    settings.value = { ...defaultSettings }
+    resetStatus()
   }
 
   // マウント時に定期フェッチを開始
@@ -390,10 +427,7 @@ export const useGitStore = defineStore('git', () => {
   // アンマウント時に定期フェッチを停止
   onUnmounted(() => {
     stopAutoFetch()
-    if (unsubscribeFileWatch) {
-      unsubscribeFileWatch()
-      unsubscribeFileWatch = null
-    }
+    stopFileChangeWatch()
   })
 
   return {
@@ -437,6 +471,8 @@ export const useGitStore = defineStore('git', () => {
     abortMerge,
     startAutoFetch,
     stopAutoFetch,
-    startFileChangeWatch
+    startFileChangeWatch,
+    stopFileChangeWatch,
+    resetState
   }
 })

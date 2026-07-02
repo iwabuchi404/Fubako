@@ -29,7 +29,7 @@
             削除
           </button>
           <button @click="handleSave" class="btn-primary btn-save" :disabled="saving">
-            {{ saving ? 'SAVING...' : 'PUBLISH / SAVE' }}
+            {{ saving ? $t('edit.saving') : $t('common.save') }}
           </button>
         </div>
       </div>
@@ -43,18 +43,56 @@
     <div 
       class="editor-main-layout" 
       :class="{ 
-        'sidebar-collapsed': sidebarCollapsed,
-        'is-resizing': isResizing
+        'is-resizing': isResizing,
+        'preview-active': activeInspectorTab === 'preview'
       }"
       :style="layoutGridStyle"
     >
-      <!-- Left Panel: Fields -->
-      <aside class="sidebar-panel glass" :class="{ 'editor-locked': projectStore.isBuildError }">
-        <div class="panel-header-actions">
-          <h3>METADATA</h3>
-          <button @click="sidebarCollapsed = true" class="btn-icon-sm" title="サイドバーを隠す" :disabled="projectStore.isBuildError">◀</button>
+      <!-- Main: Editor Area -->
+      <section class="editor-area" :class="{ 'editor-locked': projectStore.isBuildError }">
+        <template v-for="field in fields" :key="field.key">
+          <div v-if="field.type === 'markdown'" class="editor-wrapper">
+            <textarea
+              :id="field.key"
+              v-model="formData[field.key]"
+              placeholder="Start writing in Markdown..."
+              class="markdown-workspace"
+            />
+          </div>
+        </template>
+      </section>
+
+      <!-- Right Panel: Settings / Preview -->
+      <aside class="inspector-panel glass" :class="{ 'editor-locked': projectStore.isBuildError }">
+        <div
+          class="inspector-resizer"
+          :title="$t('edit.resizePanel')"
+          @pointerdown="startInspectorResize"
+        ></div>
+        <div class="inspector-tabs" role="tablist" :aria-label="$t('edit.sidePanel')">
+          <button
+            type="button"
+            class="inspector-tab"
+            :class="{ active: activeInspectorTab === 'settings' }"
+            role="tab"
+            :aria-selected="activeInspectorTab === 'settings'"
+            @click="activeInspectorTab = 'settings'"
+          >
+            {{ $t('edit.tabs.settings') }}
+          </button>
+          <button
+            type="button"
+            class="inspector-tab"
+            :class="{ active: activeInspectorTab === 'preview' }"
+            role="tab"
+            :aria-selected="activeInspectorTab === 'preview'"
+            @click="activeInspectorTab = 'preview'"
+          >
+            {{ $t('edit.tabs.preview') }}
+          </button>
         </div>
-        <div class="sidebar-scroll-content">
+
+        <div v-show="activeInspectorTab === 'settings'" class="inspector-content sidebar-scroll-content">
           <div class="panel-section">
             <div v-for="field in fields" :key="field.key">
               <div v-if="field.type !== 'markdown'" class="field-item">
@@ -182,32 +220,16 @@
             </div>
           </div>
         </div>
+
+        <div v-show="activeInspectorTab === 'preview'" class="inspector-content preview-tab-content">
+          <PreviewPanel
+            :is-new="isNew"
+            :initial-width="360"
+            :preview-path="previewPath"
+            embedded
+          />
+        </div>
       </aside>
-
-      <!-- Sidebar Restore Trigger -->
-      <div v-if="sidebarCollapsed" class="collapsed-bar left" @click="sidebarCollapsed = false" title="サイドバーを表示">
-        <span>METADATA ▶</span>
-      </div>
-
-      <!-- Center: Editor Area -->
-      <section class="editor-area" :class="{ 'editor-locked': projectStore.isBuildError }">
-        <template v-for="field in fields" :key="field.key">
-          <div v-if="field.type === 'markdown'" class="editor-wrapper">
-            <textarea 
-              :id="field.key"
-              v-model="formData[field.key]"
-              placeholder="Start writing in Markdown..."
-              class="markdown-workspace"
-            />
-          </div>
-        </template>
-      </section>
-
-      <!-- Right Panel: Preview -->
-      <PreviewPanel 
-        :is-new="isNew"
-        :initial-width="400"
-      />
     </div>
 
     <!-- Dummy Image Generator Modal -->
@@ -264,7 +286,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, toRaw, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, toRaw, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/project'
@@ -287,8 +309,32 @@ const loading = computed(() => projectStore.isLoading(`content/${type.value}/${s
 const saving = ref(false)
 const isDirty = ref(false)
 
-const sidebarCollapsed = ref(false)
+const INSPECTOR_WIDTHS_STORAGE_KEY = 'fubako-edit-inspector-widths'
+const defaultInspectorWidths = {
+  settings: 380,
+  preview: 760
+}
+
+function loadInspectorWidths() {
+  try {
+    const raw = localStorage.getItem(INSPECTOR_WIDTHS_STORAGE_KEY)
+    if (!raw) return { ...defaultInspectorWidths }
+
+    const parsed = JSON.parse(raw)
+    return {
+      settings: Number(parsed.settings) || defaultInspectorWidths.settings,
+      preview: Number(parsed.preview) || defaultInspectorWidths.preview
+    }
+  } catch {
+    return { ...defaultInspectorWidths }
+  }
+}
+
 const isResizing = ref(false)
+const activeInspectorTab = ref('settings')
+const inspectorWidths = reactive(loadInspectorWidths())
+const resizeStartX = ref(0)
+const resizeStartWidth = ref(0)
 
 // --- Image Processing Logic ---
 const showDummyModal = ref(false)
@@ -368,22 +414,75 @@ async function executeResize() {
   }
 }
 
-const layoutGridStyle = computed(() => {
-  let left = sidebarCollapsed.value ? '40px' : '280px'
-  return {
-    display: 'grid',
-    gridTemplateColumns: `${left} 1fr auto`
-  }
-})
+const activeInspectorWidth = computed(() => inspectorWidths[activeInspectorTab.value])
 
+const layoutGridStyle = computed(() => ({
+  gridTemplateColumns: `minmax(360px, 1fr) ${activeInspectorWidth.value}px`
+}))
+
+function getInspectorBounds(tab = activeInspectorTab.value) {
+  const isPreview = tab === 'preview'
+  const min = isPreview ? 560 : 320
+  const preferredMax = isPreview ? 1040 : 560
+  const availableMax = typeof window === 'undefined'
+    ? preferredMax
+    : Math.max(min, window.innerWidth - 420)
+
+  return {
+    min,
+    max: Math.max(min, Math.min(preferredMax, availableMax))
+  }
+}
+
+function clampInspectorWidth(width, tab = activeInspectorTab.value) {
+  const { min, max } = getInspectorBounds(tab)
+  return Math.min(max, Math.max(min, width))
+}
+
+function startInspectorResize(event) {
+  if (event.button !== undefined && event.button !== 0) return
+
+  isResizing.value = true
+  resizeStartX.value = event.clientX
+  resizeStartWidth.value = activeInspectorWidth.value
+  event.currentTarget.setPointerCapture?.(event.pointerId)
+  event.preventDefault()
+}
+
+function handleInspectorResize(event) {
+  if (!isResizing.value) return
+
+  const deltaX = event.clientX - resizeStartX.value
+  const nextWidth = resizeStartWidth.value - deltaX
+  inspectorWidths[activeInspectorTab.value] = clampInspectorWidth(nextWidth)
+}
+
+function stopInspectorResize() {
+  isResizing.value = false
+}
 
 // フォームの変更を監視
 watch(formData, () => {
   isDirty.value = true
 }, { deep: true })
 
+watch(activeInspectorTab, (tab) => {
+  inspectorWidths[tab] = clampInspectorWidth(inspectorWidths[tab], tab)
+})
+
+watch(inspectorWidths, () => {
+  localStorage.setItem(INSPECTOR_WIDTHS_STORAGE_KEY, JSON.stringify(inspectorWidths))
+}, { deep: true })
+
 const contentTypeConfig = computed(() => {
   return projectStore.config?.content_types?.[type.value]
+})
+
+const previewPath = computed(() => {
+  if (isNew.value || !contentTypeConfig.value?.folder) return null
+  const folder = contentTypeConfig.value.folder
+  const section = folder.replace(/^content\//, '')
+  return `/${section}/${slug.value}/`
 })
 
 const fields = computed(() => {
@@ -635,7 +734,16 @@ async function handleDelete() {
 }
 
 onMounted(async () => {
+  window.addEventListener('pointermove', handleInspectorResize)
+  window.addEventListener('pointerup', stopInspectorResize)
+  window.addEventListener('pointercancel', stopInspectorResize)
   await loadContent()
+})
+
+onUnmounted(() => {
+  window.removeEventListener('pointermove', handleInspectorResize)
+  window.removeEventListener('pointerup', stopInspectorResize)
+  window.removeEventListener('pointercancel', stopInspectorResize)
 })
 </script>
 
@@ -743,7 +851,7 @@ onMounted(async () => {
 .editor-main-layout {
   flex: 1;
   display: grid;
-  /* grid-template-columns is set via inline :style */
+  /* grid-template-columns is set via inline :style to retain per-tab inspector widths */
   gap: 0; /* Gap is handled by resizer and borders */
   background: var(--glass-border);
   overflow: hidden;
@@ -916,6 +1024,7 @@ onMounted(async () => {
   flex-direction: column;
   background: var(--color-charcoal-deep);
   height: 100%;
+  min-width: 0;
 }
 
 .editor-wrapper {
@@ -929,7 +1038,7 @@ onMounted(async () => {
   background: transparent;
   border: none;
   color: var(--color-text-main);
-  padding: 2rem 3rem;
+  padding: 2rem;
   font-family: var(--font-mono);
   font-size: 15px;
   line-height: 1.8;
@@ -940,6 +1049,77 @@ onMounted(async () => {
 
 .markdown-workspace::placeholder {
   color: var(--color-charcoal-muted);
+}
+
+/* --- Inspector Tabs --- */
+.inspector-panel {
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--color-charcoal-main);
+  border-left: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.inspector-resizer {
+  position: absolute;
+  left: -4px;
+  top: 0;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 20;
+  transition: background-color 0.15s;
+}
+
+.inspector-resizer:hover,
+.is-resizing .inspector-resizer {
+  background: var(--color-primary);
+}
+
+.inspector-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.5rem;
+  background: var(--color-charcoal-light);
+  border-bottom: 1px solid var(--glass-border);
+}
+
+.inspector-tab {
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-text-dim);
+  padding: 0.55rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.inspector-tab:hover {
+  color: var(--color-text-main);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.inspector-tab.active {
+  background: var(--color-charcoal-deep);
+  color: var(--color-primary);
+  border-color: var(--glass-border);
+}
+
+.inspector-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 1.25rem;
+}
+
+.preview-tab-content {
+  padding: 0;
+  overflow: hidden;
 }
 
 /* --- Preview Panel --- */
@@ -1052,6 +1232,30 @@ onMounted(async () => {
 .preview-state .hint {
   font-size: 0.75rem;
   font-weight: 400;
+}
+
+@media (max-width: 1100px) {
+  .editor-main-layout {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 1fr) minmax(280px, 38vh);
+  }
+
+  .editor-main-layout.preview-active {
+    grid-template-rows: minmax(260px, 34vh) minmax(420px, 1fr);
+  }
+
+  .inspector-resizer {
+    display: none;
+  }
+
+  .inspector-panel {
+    border-left: none;
+    border-top: 1px solid var(--glass-border);
+  }
+
+  .markdown-workspace {
+    padding: 1.5rem;
+  }
 }
 
 /* --- Misc --- */

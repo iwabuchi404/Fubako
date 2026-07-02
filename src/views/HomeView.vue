@@ -75,6 +75,7 @@
                   @click="handleGitSave"
                   class="btn-secondary btn-sm"
                   :disabled="!gitStore.canSave || gitStore.loading.commit"
+                  :title="gitActionReasons.save"
                 >
                   {{ gitStore.loading.commit ? $t('home.git.saving') : $t('home.git.saveAndPush') }}
                 </button>
@@ -82,14 +83,15 @@
                   @click="handleGitFetch"
                   class="btn-secondary btn-sm"
                   :disabled="!gitStore.canFetch || gitStore.loading.fetch"
+                  :title="gitActionReasons.fetch"
                 >
                   {{ gitStore.loading.fetch ? $t('home.git.checking') : $t('home.git.checkUpdate') }}
                 </button>
                 <button
                   @click="handleGitPublish"
                   class="btn-publish btn-sm"
-                  :disabled="!gitStore.canPublish || gitStore.loading.merge"
-                  :title="$t('home.git.publishTitle', { develop: gitStore.settings?.developBranch, production: gitStore.settings?.productionBranch })"
+                  :disabled="!canStartPublish || gitStore.loading.merge"
+                  :title="gitActionReasons.publish"
                 >
                   {{ gitStore.loading.merge ? $t('home.git.publishing') : $t('home.git.publish') }}
                 </button>
@@ -102,6 +104,26 @@
               >
                 {{ gitStore.loading.export ? $t('home.export.exporting') : $t('home.export.label') }}
               </button>
+            </div>
+
+            <div v-if="showGitButtons" class="publish-checklist">
+              <div class="publish-checklist-header">
+                <span>{{ $t('home.git.publishChecks.title') }}</span>
+                <strong :class="canStartPublish ? 'status-ready' : 'status-blocked'">
+                  {{ canStartPublish ? $t('home.git.publishChecks.ready') : $t('home.git.publishChecks.blocked') }}
+                </strong>
+              </div>
+              <div class="publish-checks">
+                <span
+                  v-for="check in publishChecks"
+                  :key="check.key"
+                  class="publish-check"
+                  :class="{ ok: check.ok }"
+                >
+                  <span class="check-dot"></span>
+                  {{ check.label }}
+                </span>
+              </div>
             </div>
 
             <!-- 2段目: プレビュー操作 + サイト確認 -->
@@ -289,6 +311,67 @@ const showGitButtons = computed(() => gitStore.isGitEnabled)
 // 本番URL（Git設定の productionBaseUrl）
 const productionUrl = computed(() => gitStore.gitConfig?.productionBaseUrl || '')
 
+const developBranchName = computed(() => gitStore.settings?.developBranch || 'develop')
+const productionBranchName = computed(() => gitStore.settings?.productionBranch || 'production')
+
+const publishChecks = computed(() => [
+  {
+    key: 'repo',
+    ok: gitStore.isRepo,
+    label: t('home.git.publishChecks.repo')
+  },
+  {
+    key: 'remote',
+    ok: gitStore.hasRemote,
+    label: t('home.git.publishChecks.remote')
+  },
+  {
+    key: 'branch',
+    ok: gitStore.currentBranch === developBranchName.value,
+    label: t('home.git.publishChecks.branch', { develop: developBranchName.value })
+  },
+  {
+    key: 'clean',
+    ok: !gitStore.hasUncommittedChanges && !gitStore.isAheadOfRemote,
+    label: t('home.git.publishChecks.clean')
+  },
+  {
+    key: 'synced',
+    ok: !gitStore.isBehindRemote && !gitStore.hasRemoteUpdates,
+    label: t('home.git.publishChecks.synced')
+  }
+])
+
+const canStartPublish = computed(() => {
+  return gitStore.isGitEnabled && publishChecks.value.every(check => check.ok)
+})
+
+const gitActionReasons = computed(() => {
+  const publishTitle = t('home.git.publishTitle', {
+    develop: developBranchName.value,
+    production: productionBranchName.value
+  })
+
+  let publish = publishTitle
+  if (!gitStore.hasRemote) {
+    publish = t('home.git.disabled.noRemote')
+  } else if (gitStore.currentBranch !== developBranchName.value) {
+    publish = t('home.git.disabled.wrongBranch', { develop: developBranchName.value })
+  } else if (gitStore.hasUncommittedChanges) {
+    publish = t('home.git.disabled.uncommitted')
+  } else if (gitStore.isAheadOfRemote) {
+    publish = t('home.git.disabled.ahead')
+  } else if (gitStore.isBehindRemote || gitStore.hasRemoteUpdates) {
+    publish = t('home.git.disabled.behind')
+  }
+
+  return {
+    save: gitStore.canSave ? t('home.git.saveAndPush') : t('home.git.disabled.noChanges'),
+    fetch: gitStore.canFetch ? t('home.git.checkUpdate') : t('home.git.disabled.noRemote'),
+    publish
+  }
+})
+
 async function loadHistory() {
   try {
     projectHistory.value = await window.electronAPI.getProjectHistory()
@@ -410,8 +493,13 @@ async function handleGitFetch() {
 }
 
 async function handleGitPublish() {
-  const developBranch = gitStore.settings?.developBranch || 'develop'
-  const productionBranch = gitStore.settings?.productionBranch || 'main'
+  if (!canStartPublish.value) {
+    projectStore.notify(gitActionReasons.value.publish, 'warning')
+    return
+  }
+
+  const developBranch = developBranchName.value
+  const productionBranch = productionBranchName.value
   const confirmed = window.confirm(t('git.publishConfirm', { develop: developBranch, production: productionBranch }))
   if (!confirmed) return
 
@@ -741,6 +829,65 @@ async function handleAbortMerge() {
   border-top: 1px solid var(--glass-border);
   padding-top: 0.5rem;
   justify-content: flex-end;
+}
+
+.publish-checklist {
+  border-top: 1px solid var(--glass-border);
+  padding-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.publish-checklist-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.72rem;
+  color: var(--color-text-dim);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.status-ready {
+  color: var(--color-success);
+}
+
+.status-blocked {
+  color: var(--color-warning);
+}
+
+.publish-checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.publish-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.68rem;
+  color: var(--color-text-dark);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.publish-check.ok {
+  color: var(--color-text-dim);
+}
+
+.check-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-warning);
+}
+
+.publish-check.ok .check-dot {
+  background: var(--color-success);
 }
 
 .site-link-group {

@@ -158,11 +158,11 @@ async function listContents(projectPath, contentType, config) {
                 const frontmatter = parseFrontmatter(frontmatterYaml);
 
                 return {
-                    slug: file.replace('.md', ''),
                     title: frontmatter.title || 'Untitled',
                     date: frontmatter.date || '',
                     draft: frontmatter.draft || false,
-                    ...frontmatter
+                    ...frontmatter,
+                    slug: file.replace('.md', '')
                 };
             } catch (error) {
                 console.error(`Failed to parse ${file}:`, error);
@@ -449,6 +449,89 @@ async function detectAllSlugCollisions(projectPath, config) {
     return collisions;
 }
 
+/**
+ * Frontmatter内を再帰的に走査し、指定画像パスを含むフィールドを検出
+ */
+function searchFrontmatter(obj, targetPath, prefix, matches) {
+    if (!obj || typeof obj !== 'object') return;
+
+    for (const [key, value] of Object.entries(obj)) {
+        const currentKey = prefix ? `${prefix}.${key}` : key;
+
+        if (typeof value === 'string' && value.includes(targetPath)) {
+            matches.push({ location: 'frontmatter', key: currentKey });
+        } else if (Array.isArray(value)) {
+            value.forEach((item, index) => {
+                if (typeof item === 'string' && item.includes(targetPath)) {
+                    matches.push({ location: 'frontmatter', key: `${currentKey}[${index}]` });
+                } else if (item !== null && typeof item === 'object') {
+                    searchFrontmatter(item, targetPath, `${currentKey}[${index}]`, matches);
+                }
+            });
+        } else if (value !== null && typeof value === 'object') {
+            searchFrontmatter(value, targetPath, currentKey, matches);
+        }
+    }
+}
+
+/**
+ * 指定画像パスがどのコンテンツから参照されているか検索
+ * 千オーダーの記事数を想定し、並列数を制限してメモリ/I/O負荷を抑える
+ */
+async function findImageReferences(projectPath, imagePath, config) {
+    const references = [];
+    const contentTypes = Object.keys(config.content_types || {});
+    const CONCURRENCY = 10;
+
+    for (const contentType of contentTypes) {
+        const typeConfig = config.content_types[contentType];
+        const folderPath = path.join(projectPath, typeConfig.folder);
+
+        if (!fsSyncModule.existsSync(folderPath)) continue;
+
+        const files = (await fs.readdir(folderPath)).filter(
+            f => f.endsWith('.md') && f !== '_index.md'
+        );
+
+        // 並列数を制限しつつファイルをスキャン
+        for (let i = 0; i < files.length; i += CONCURRENCY) {
+            const chunk = files.slice(i, i + CONCURRENCY);
+            const chunkResults = await Promise.all(
+                chunk.map(async (file) => {
+                    const filePath = path.join(folderPath, file);
+                    try {
+                        const { frontmatterYaml, body } = await parseMarkdown(filePath);
+                        const frontmatter = parseFrontmatter(frontmatterYaml);
+                        const matches = [];
+
+                        searchFrontmatter(frontmatter, imagePath, '', matches);
+
+                        if (typeof body === 'string' && body.includes(imagePath)) {
+                            matches.push({ location: 'body' });
+                        }
+
+                        if (matches.length === 0) return null;
+
+                        return {
+                            contentType,
+                            slug: file.replace('.md', ''),
+                            title: frontmatter.title || 'Untitled',
+                            matches
+                        };
+                    } catch (error) {
+                        console.error(`[ContentManager] Failed to scan ${filePath}:`, error);
+                        return null;
+                    }
+                })
+            );
+
+            references.push(...chunkResults.filter(Boolean));
+        }
+    }
+
+    return references;
+}
+
 module.exports = {
     parseMarkdown,
     parseFrontmatter,
@@ -463,5 +546,6 @@ module.exports = {
     invalidateIndexCache,
     checkSlugCollision,
     resolveSlugCollision,
-    detectAllSlugCollisions
+    detectAllSlugCollisions,
+    findImageReferences
 };

@@ -112,7 +112,7 @@ export const useProjectStore = defineStore('project', () => {
         const errorStore = useErrorStore()
         errorStore.clearErrors()
         const gitStore = useGitStore()
-        gitStore.stopAutoFetch()
+        gitStore.resetState()
         projectPath.value = null
         config.value = null
         isLoaded.value = false

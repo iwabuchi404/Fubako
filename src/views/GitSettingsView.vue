@@ -23,6 +23,24 @@
     </section>
 
     <section v-if="localSettings.enabled" class="settings-section glass">
+      <h2 class="section-title">{{ $t('gitSettings.sections.setup') }}</h2>
+      <div class="setup-steps">
+        <div
+          v-for="step in setupSteps"
+          :key="step.key"
+          class="setup-step"
+          :class="{ done: step.done }"
+        >
+          <span class="setup-step-index">{{ step.index }}</span>
+          <div class="setup-step-body">
+            <strong>{{ step.label }}</strong>
+            <span>{{ step.done ? $t('gitSettings.setup.done') : $t('gitSettings.setup.todo') }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="localSettings.enabled" class="settings-section glass">
       <h2 class="section-title">{{ $t('gitSettings.sections.auth') }}</h2>
 
       <div class="auth-area">
@@ -179,6 +197,7 @@
           @click="handleGenerateCI"
           class="btn-primary"
           :disabled="generating || !gitStore.hasRemote"
+          :title="!gitStore.hasRemote ? $t('gitSettings.ci.remoteRequired') : ''"
         >
           {{ generating ? $t('gitSettings.ci.generating') : $t('gitSettings.ci.generate') }}
         </button>
@@ -241,7 +260,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useProjectStore } from '../stores/project'
 import { useGitStore } from '../stores/git'
@@ -276,6 +295,33 @@ const authFlow = ref({
   statusText: '',
   pollTimer: null
 })
+
+const setupSteps = computed(() => [
+  {
+    key: 'auth',
+    index: 1,
+    label: t('gitSettings.setup.auth'),
+    done: authStatus.value.authenticated
+  },
+  {
+    key: 'repo',
+    index: 2,
+    label: t('gitSettings.setup.repo'),
+    done: gitStore.isRepo
+  },
+  {
+    key: 'remote',
+    index: 3,
+    label: t('gitSettings.setup.remote'),
+    done: Boolean(localSettings.value.remoteUrl || gitStore.hasRemote)
+  },
+  {
+    key: 'ci',
+    index: 4,
+    label: t('gitSettings.setup.ci'),
+    done: Boolean(generateResult.value?.type === 'success')
+  }
+])
 
 async function loadSettings() {
   const config = gitStore.gitConfig
@@ -519,6 +565,62 @@ onUnmounted(() => {
   font-size: 0.78rem;
   color: var(--color-text-dim);
   margin: 0.25rem 0 0;
+}
+
+.setup-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.setup-step {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  background: var(--color-charcoal-deep);
+}
+
+.setup-step.done {
+  border-color: rgba(0, 200, 100, 0.45);
+}
+
+.setup-step-index {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  background: var(--color-charcoal-muted);
+  color: var(--color-text-dim);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.setup-step.done .setup-step-index {
+  background: var(--color-success);
+  color: var(--color-charcoal-deep);
+}
+
+.setup-step-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.setup-step-body strong {
+  color: var(--color-text-main);
+  font-size: 0.85rem;
+}
+
+.setup-step-body span {
+  color: var(--color-text-dim);
+  font-size: 0.75rem;
 }
 
 .setting-control {

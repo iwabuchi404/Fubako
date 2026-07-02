@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -434,6 +434,36 @@ ipcMain.handle('generate-dummy-image', async (event, options) => {
   }
 });
 
+ipcMain.handle('delete-image', async (event, { imagePath }) => {
+  console.log('[Main] delete-image start:', imagePath);
+  try {
+    if (!currentProjectPath) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const result = await imageManager.deleteImage(imagePath, currentProjectPath);
+    console.log('[Main] delete-image result:', result);
+    return result;
+  } catch (error) {
+    console.error('[Main] Failed to delete image:', error);
+    return { success: false, error: error.message };
+  }
+});
+
+ipcMain.handle('get-image-references', async (event, { imagePath }) => {
+  console.log('[Main] get-image-references start:', imagePath);
+  try {
+    if (!currentProjectPath || !currentConfig) {
+      throw new Error('プロジェクトが開かれていません');
+    }
+    const references = await contentManager.findImageReferences(currentProjectPath, imagePath, currentConfig);
+    console.log('[Main] get-image-references count:', references.length);
+    return references;
+  } catch (error) {
+    console.error('[Main] Failed to get image references:', error);
+    return [];
+  }
+});
+
 ipcMain.handle('start-preview', async (event) => {
   try {
     if (!currentProjectPath) {
@@ -756,6 +786,44 @@ ipcMain.handle('git-generate-ci', async (event, { projectPath, deployTarget, opt
   try {
     const token = githubAuth.loadToken();
     const result = await gitManager.generateCIFiles(projectPath, deployTarget, options, token);
+    if (!result.success) return result;
+
+    // GitHub Pages の Source を "GitHub Actions" に自動設定
+    if (token && deployTarget === 'github-pages') {
+      try {
+        const { exec } = require('dugite');
+        const urlResult = await exec(['remote', 'get-url', 'origin'], projectPath, {
+          env: { ...process.env, LC_ALL: 'C' }
+        });
+        const remoteUrl = urlResult.stdout.trim();
+        const match = remoteUrl.match(/github\.com[:/]([^/]+)\/(.+?)(?:\.git)?$/);
+        if (match) {
+          const owner = match[1];
+          const repo = match[2];
+          const getResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/pages`, {
+            headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' }
+          });
+          if (getResp.ok) {
+            const updateResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/pages`, {
+              method: 'PUT',
+              headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+              body: JSON.stringify({ build_type: 'workflow' })
+            });
+            console.log('[githubAuth] Pages source update:', updateResp.status);
+          } else if (getResp.status === 404) {
+            const createResp = await fetch(`https://api.github.com/repos/${owner}/${repo}/pages`, {
+              method: 'POST',
+              headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/vnd.github+json' },
+              body: JSON.stringify({ build_type: 'workflow' })
+            });
+            console.log('[githubAuth] Pages source create:', createResp.status);
+          }
+        }
+      } catch (pagesError) {
+        console.error('[githubAuth] Pages auto-config error:', pagesError.message);
+      }
+    }
+
     return result;
   } catch (error) {
     console.error('Failed to generate CI files:', error);
@@ -779,7 +847,26 @@ ipcMain.handle('github-auth-poll', async (event, { deviceCode }) => {
   try {
     const data = await githubAuth.pollForToken(deviceCode);
     if (data.access_token) {
+      // 保存前にトークンを検証
+      try {
+        const verifyResp = await fetch('https://api.github.com/user', {
+          headers: { 'Authorization': `token ${data.access_token}`, 'Accept': 'application/vnd.github+json' }
+        });
+        console.log('[githubAuth] Pre-save verify: status=' + verifyResp.status + ', token starts=' + data.access_token.substring(0, 8) + ', length=' + data.access_token.length);
+        if (verifyResp.ok) {
+          const userData = await verifyResp.json();
+          console.log('[githubAuth] Pre-save verify: user=' + userData.login);
+        } else {
+          const errBody = await verifyResp.text();
+          console.error('[githubAuth] Pre-save verify FAILED: ' + errBody);
+        }
+      } catch (e) {
+        console.error('[githubAuth] Pre-save verify error:', e.message);
+      }
       githubAuth.saveToken(data.access_token);
+      // 保存後にも検証
+      const loadedToken = githubAuth.loadToken();
+      console.log('[githubAuth] Post-load: starts=' + (loadedToken ? loadedToken.substring(0, 8) : 'null') + ', length=' + (loadedToken ? loadedToken.length : 0) + ', match=' + (loadedToken === data.access_token));
       return { success: true, authenticated: true };
     }
     if (data.error === 'authorization_pending') {
@@ -797,7 +884,24 @@ ipcMain.handle('github-auth-poll', async (event, { deviceCode }) => {
 
 ipcMain.handle('github-auth-status', async () => {
   const token = githubAuth.loadToken();
-  return { authenticated: !!token };
+  if (!token) return { authenticated: false };
+  // トークンの有効性をGitHub APIで検証
+  try {
+    const resp = await fetch('https://api.github.com/user', {
+      headers: { 'Authorization': `token `, 'Accept': 'application/vnd.github+json' }
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      console.log('[githubAuth] Token valid, user:', data.login);
+      return { authenticated: true, username: data.login };
+    } else {
+      console.warn('[githubAuth] Token invalid, status:', resp.status);
+      return { authenticated: false, tokenInvalid: true };
+    }
+  } catch (e) {
+    console.error('[githubAuth] Token check failed:', e.message);
+    return { authenticated: true, warning: 'Token check failed' };
+  }
 });
 
 ipcMain.handle('github-auth-clear', async () => {

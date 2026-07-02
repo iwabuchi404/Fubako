@@ -37,6 +37,11 @@ const router = createRouter({
             path: '/git-settings',
             name: 'git-settings',
             component: () => import('../views/GitSettingsView.vue')
+        },
+        {
+            path: '/media',
+            name: 'media',
+            component: () => import('../views/MediaView.vue')
         }
     ]
 })

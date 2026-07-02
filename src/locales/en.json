@@ -36,7 +36,25 @@
             "checking": "Checking...",
             "publish": "Publish",
             "publishing": "Publishing...",
-            "publishTitle": "Publish {develop} → {production}"
+            "publishTitle": "Publish {develop} → {production}",
+            "disabled": {
+                "noChanges": "No changes to save",
+                "noRemote": "Remote URL is not set",
+                "wrongBranch": "Switch to the {develop} branch",
+                "uncommitted": "Save and push local changes first",
+                "ahead": "Push saved changes first",
+                "behind": "Remote has updates. Check updates first"
+            },
+            "publishChecks": {
+                "title": "Pre-publish checks",
+                "repo": "Git repository is active",
+                "remote": "Remote URL is set",
+                "branch": "Working on {develop}",
+                "clean": "No unsaved changes",
+                "synced": "Synced with remote",
+                "ready": "Ready to publish",
+                "blocked": "Needs attention before publishing"
+            }
         },
         "export": {
             "label": "Export",
@@ -114,6 +132,13 @@
         "validationError": "Please check your input"
     },
     "edit": {
+        "saving": "Saving...",
+        "sidePanel": "Article side panel",
+        "resizePanel": "Drag to resize panel",
+        "tabs": {
+            "settings": "Settings",
+            "preview": "Preview"
+        },
         "customSlug": "Custom URL (slug)",
         "slugHelp": "Alphanumeric characters and hyphens recommended. Leave blank to use the filename.",
         "dummyTitle": "Generate Dummy Image",
@@ -159,6 +184,37 @@
         "defaultDateLabel": "Date",
         "defaultTitleLabel": "Title"
     },
+    "media": {
+        "title": "Media Library",
+        "upload": "Upload Image",
+        "uploading": "Uploading...",
+        "uploadSuccess": "Image uploaded",
+        "uploadError": "Failed to upload image: {error}",
+        "uploadFailed": "Failed to upload image",
+        "empty": "No uploaded images yet",
+        "dropHint": "Drop images here to upload",
+        "selectFile": "Select File",
+        "delete": "Delete",
+        "deleteConfirm": "Delete \"{name}\"?\nThis action cannot be undone.",
+        "deleteSuccess": "Image deleted",
+        "deleteError": "Failed to delete image: {error}",
+        "copyPath": "Copy Path",
+        "copySuccess": "Path copied",
+        "references": "Usage",
+        "checkingReferences": "Checking usage...",
+        "referencesFound": "Used in {count} articles",
+        "referencesNone": "Not referenced by any article",
+        "referencesError": "Failed to check usage",
+        "referenceFrontmatter": "Frontmatter: {key}",
+        "referenceBody": "Body",
+        "openContent": "Open Article",
+        "preview": "Preview",
+        "fileName": "File Name",
+        "fileSize": "Size",
+        "modified": "Modified",
+        "dimensions": "Dimensions",
+        "unknown": "Unknown"
+    },
     "errors": {
         "title": "Error History",
         "subtitle": "View errors that occurred in the system",
@@ -193,7 +249,16 @@
             "auth": "GitHub Auth",
             "branch": "Branch Settings",
             "ci": "CI Settings",
-            "status": "Current Status"
+            "status": "Current Status",
+            "setup": "Publishing setup flow"
+        },
+        "setup": {
+            "auth": "Sign in to GitHub",
+            "repo": "Enable Git repository",
+            "remote": "Set remote URL",
+            "ci": "Generate CI file",
+            "done": "Done",
+            "todo": "Todo"
         },
         "enabled": {
             "label": "Enable Git management",
